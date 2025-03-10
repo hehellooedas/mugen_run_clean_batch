@@ -1,0 +1,7 @@
+aiohttp
+aiofiles
+asyncssh
+asyncpg
+Faker
+openpyxl
+zstandard
