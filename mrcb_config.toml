@@ -1,8 +1,8 @@
-[UEFI]
 arch='riscv64'
+platform='UEFI'
 drive_url='https://repo.tarsier-infra.isrc.ac.cn/openEuler-RISC-V/devel/20250303/v0.1/QEMU/openEuler-25.03-V1-xfce-qemu-devel-uefi.qcow2.zst'
 drive_type='qcow2'
 VIRT_CODE='https://repo.tarsier-infra.isrc.ac.cn/openEuler-RISC-V/devel/20250303/v0.1/QEMU/RISCV_VIRT_CODE.fd'
 VIRT_VARS='https://repo.tarsier-infra.isrc.ac.cn/openEuler-RISC-V/devel/20250303/v0.1/QEMU/RISCV_VIRT_VARS.fd'
 input_excel=''
-from_to='2-1000'
+from_to=[1,1000]

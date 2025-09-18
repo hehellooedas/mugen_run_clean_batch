@@ -1,4 +1,4 @@
-import asyncio,faker
+from paramiko import SSHClient
 
 
 
@@ -16,7 +16,7 @@ class TestCase():
         self.run:str = ''
 
 
-    async def pre_test(self):
+    def pre_test(self):
         if self.arch == 'riscv64':
             self.run = f'qemu-system-riscv64 \
              -nographic -machine virt -smp {self.vcpu} -m 2G \

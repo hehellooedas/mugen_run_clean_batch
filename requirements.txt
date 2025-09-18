@@ -1,7 +1,8 @@
-aiohttp
-aiofiles
-asyncssh
-asyncpg
-Faker
 openpyxl
 zstandard
+paramiko
+setproctitle
+tqdm
+rich
+psutil
+humanfriendly
