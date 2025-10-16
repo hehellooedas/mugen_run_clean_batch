@@ -1,0 +1,2 @@
+from arch_platforms.RISC_V_UEFI import RISC_V_UEFI
+from arch_platforms.X86_UEFI import X86_UEFI

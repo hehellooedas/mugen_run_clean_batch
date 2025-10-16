@@ -1,4 +1,4 @@
-arch='riscv64'
+arch='RISC-V'
 platform='UEFI'
 drive_url='https://repo.tarsier-infra.isrc.ac.cn/openEuler-RISC-V/devel/20250303/v0.1/QEMU/openEuler-25.03-V1-xfce-qemu-devel-uefi.qcow2.zst'
 drive_type='qcow2'

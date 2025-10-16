@@ -1,5 +1,6 @@
 #! /usr/bin/env python3
 # encoding: utf-8
+
 import subprocess
 
 from rich.console import Console
@@ -7,8 +8,8 @@ from rich.table import Table
 from rich.traceback import install
 from rich.logging import RichHandler
 from setproctitle import setproctitle
+from datetime import datetime
 
-import queue
 import logging
 import argparse
 import tomllib
@@ -27,10 +28,11 @@ from openpyxl import load_workbook
 import zstandard as zstd
 from paramiko import SSHClient
 from concurrent.futures import ThreadPoolExecutor
+from queue import Queue,Empty
 
 
 
-setproctitle('mrcb')
+setproctitle('mrcb')    # 设置mrcb的进程名称
 
 install(show_locals=True)
 console = Console(color_system='256',file=sys.stdout)
@@ -52,25 +54,30 @@ mugen_test = namedtuple(
         'TestCase'      # 测试用例名
     ]
 )
+mugen_tests:Queue = Queue(maxsize=cpu_count * 2)      # 存放所有测试用例描述的列表
+target_mugen_tail_object:object = object()             # 队列尾标志
+# 把所有待测试项目全部放进队列里
+def put_mugen_test_to_queue(mugen_test_list:list):
+    for mugen_test in mugen_test_list:
+        mugen_tests.put(mugen_test,block=True)
+    mugen_tests.put(target_mugen_tail_object,block=True)
+
 
 
 # mrcb存放资源的临时目录
-mrcb_tmp_dir = Path('/root/mrcb_tmp')
-firmware_dir = mrcb_tmp_dir / 'firmware'
-mugen_dir = mrcb_tmp_dir / 'mugen'
-
-# mrcb运行时目录
-mrcb_runtime_dir = Path('/root/mrcb_runtime')
-
-# mrcb存放结果的目录
-mrcb_result_dir = Path('/root/mrcb_result')
+mrcb_dir = Path('.')
+mrcb_work_dir = mrcb_dir / f"workdir_{datetime.now().strftime('%Y%m%d_%H%M%S')}" # 本次运行mrcb创建的工作目录
+mrcb_firmware_dir = mrcb_work_dir / 'firmware'   # 存放固件
+mrcb_mugen_dir = mrcb_work_dir / 'mugen'         # 存放mugen项目
 
 
-support_platform = ('UEFI','uboot','penglai')
-support_arch = ('x86_64','riscv64')
+# 当前项目支持的架构和启动平台
+support_platforms = ('UEFI','UBOOT','PENGLAI')  # 支持的启动引导方式(固件)
+support_archs = ('X86','ARM','RISC-V')          # 支持的指令集架构
 
+
+# 预制的https请求头
 faker = faker.Faker()
-
 headers = {
     'Accept': 'image/avif,image/webp,image/png,image/svg+xml,image/*;q=0.8,*/*;q=0.5',
     'Accept-Encoding': 'gzip, deflate, br, zstd',
@@ -79,7 +86,6 @@ headers = {
 }
 
 
-SuiteCaseQueue = queue.Queue()
 
 
 
@@ -87,11 +93,11 @@ def parse_config() -> dict:
     """
     1. 命令行交互
     2. 读取和解析Toml配置文件
-    :return: config字典
+    :return: config字典,所有输入的参数转换为Python对象
     """
     parser = argparse.ArgumentParser(
         description="mrcb - Batch run mugen tests in a clean environment\n"
-                    "把mugen运行在干净的系统环境"
+                    "把mugen批量地运行在干净的系统环境"
     )
     parser.add_argument(
         "--config", "-c",
@@ -106,16 +112,15 @@ def parse_config() -> dict:
     except FileNotFoundError:
         console.print(f"您指定的文件{mrcb_config_file}不存在,请检查文件或目录名是否正确")
         sys.exit(1)
-    if len(config.keys()) != 1:
-        console.print('配置文件中请不要出现多于一对[]')
-        sys.exit(1)
+
     # 判断platform是否合法
     global platform,arch
     platform,arch = config['platform'],config['arch']
-    if platform not in support_platform:
-        console.print(f'您输入的openEuler qemu镜像启动平台{platform}值不合法,合法值必须为{support_platform}其中之一')
+    if platform not in support_platforms:
+        console.print(f'您输入的openEuler qemu镜像启动平台{platform}值不合法,合法值必须为{support_platforms}其中之一')
         console.print('如有新平台需要接入请给mrcb项目提交issue')
         sys.exit(1)
+    print(config)
     return config
 
 
@@ -140,8 +145,8 @@ def check_config(config:dict):
     :return:
     """
     arch = config.get('arch',None)
-    if arch is None or arch not in support_arch:
-        console.print(f'您输入的arch字段有误,请确认值为下列之一:{support_arch}')
+    if arch is None or arch not in support_archs:
+        console.print(f'您输入的arch字段有误,请确认值为下列之一:{support_archs}')
         sys.exit(1)
     result = {}
 
@@ -179,11 +184,10 @@ def check_config(config:dict):
 
     # 获取所有需要测试的mugen测试用例名
     for i in range(from_to[0],from_to[1]+1):
-        SuiteCaseQueue.put(
         mugen_test(
             TestSuite = ws.cell(row=i,column=1).value,
             TestCase = ws.cell(row=i,column=2).value,
-        ))
+        )
 
 
 
@@ -194,24 +198,24 @@ def init_environment_before_run(config):
     初始化正式运行前所需的本地环境
     :return:
     """
-    if mrcb_tmp_dir.exists():
-        shutil.rmtree(mrcb_tmp_dir)
-    mrcb_tmp_dir.mkdir(parents=True)
-
-    if mrcb_runtime_dir.exists():
-        shutil.rmtree(mrcb_runtime_dir)
-    mrcb_runtime_dir.mkdir(parents=True)
-
-    if mrcb_result_dir.exists():
-        shutil.rmtree(mrcb_result_dir)
-    shutil.rmtree(mrcb_result_dir)
+    # if mrcb_tmp_dir.exists():
+    #     shutil.rmtree(mrcb_tmp_dir)
+    # mrcb_tmp_dir.mkdir(parents=True)
+    #
+    # if mrcb_runtime_dir.exists():
+    #     shutil.rmtree(mrcb_runtime_dir)
+    # mrcb_runtime_dir.mkdir(parents=True)
+    #
+    # if mrcb_result_dir.exists():
+    #     shutil.rmtree(mrcb_result_dir)
+    # shutil.rmtree(mrcb_result_dir)
 
 
     # 下载所有所需文件到tmp目录
     try:    # 获取mugen
         subprocess.run(
             args="git clone https://gitee.com/openeuler/mugen.git --depth=1",
-            cwd=mrcb_tmp_dir,
+            cwd=mrcb_mugen_dir,
             check=True,shell=True,
         )
     except subprocess.CalledProcessError as e:
@@ -229,7 +233,7 @@ def init_environment_before_run(config):
     response.raise_for_status()
     if image_format == 'zst':
         decompressed_data = zstd.decompress(response.content)
-        with open(mrcb_tmp_dir / f"openEuler.{config['drive_type']}", 'wb') as file:
+        with open(mrcb_mugen_dir / f"openEuler.{config['drive_type']}", 'wb') as file:
             file.write(decompressed_data)
     elif image_format == 'xz':
         pass
