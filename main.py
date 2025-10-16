@@ -14,13 +14,13 @@ import logging
 import argparse
 import tomllib
 import time
-import json
+import json,pickle
 import faker
 import zipfile,lzma,tarfile
 import shutil,psutil
 import os,sys,signal
 import requests
-
+import humanfriendly
 from collections import namedtuple
 from pathlib import Path
 from io import BytesIO
@@ -193,72 +193,47 @@ def check_config(config:dict):
 
 
 
-def init_environment_before_run(config):
+def get_analysis_mugen():
     """
     初始化正式运行前所需的本地环境
     :return:
     """
-    # if mrcb_tmp_dir.exists():
-    #     shutil.rmtree(mrcb_tmp_dir)
-    # mrcb_tmp_dir.mkdir(parents=True)
-    #
-    # if mrcb_runtime_dir.exists():
-    #     shutil.rmtree(mrcb_runtime_dir)
-    # mrcb_runtime_dir.mkdir(parents=True)
-    #
-    # if mrcb_result_dir.exists():
-    #     shutil.rmtree(mrcb_result_dir)
-    # shutil.rmtree(mrcb_result_dir)
 
-
+    if mrcb_work_dir.exists():
+        shutil.rmtree(mrcb_work_dir)
+    mrcb_work_dir.mkdir();mrcb_firmware_dir.mkdir()
     # 下载所有所需文件到tmp目录
     try:    # 获取mugen
         subprocess.run(
             args="git clone https://gitee.com/openeuler/mugen.git --depth=1",
-            cwd=mrcb_mugen_dir,
+            cwd=mrcb_work_dir,
             check=True,shell=True,
         )
     except subprocess.CalledProcessError as e:
         console.print(f"git clone失败,{e}")
         sys.exit(1)
-
-
-    # 下载openEuler的qemu镜像
-    url = config.get('drive_url')
-    image_format = url.split('.')[-1]
-    response = requests.get(
-        url = url,
-        headers = headers,
-    )
-    response.raise_for_status()
-    if image_format == 'zst':
-        decompressed_data = zstd.decompress(response.content)
-        with open(mrcb_mugen_dir / f"openEuler.{config['drive_type']}", 'wb') as file:
-            file.write(decompressed_data)
-    elif image_format == 'xz':
-        pass
-    elif image_format == 'bz2':
-        pass
-    elif image_format == 'zip':
-        pass
-    elif image_format == 'gz':
-        pass
-
-    if platform == 'UEFI':
-        ...
+    # 获取所有有可能用到的json文件
+    all_mugen_json_files = list(os.walk(mrcb_mugen_dir / 'suite2cases'))[0][2]
 
 
 
+def input_from_excel():
+    pass
 
 
 
 if __name__ == "__main__":
     start_time = time.time()
+
+    # 先初始化mugen
+    get_analysis_mugen()
     config = parse_config()
-    check_config(config)
-    init_environment_before_run(config)
-    print(config)
+    #check_config(config)
 
     # 正式开始测试
     with ThreadPoolExecutor(max_workers=cpu_count) as executor:
-        pass
+        executor.submit(put_mugen_test_to_queue)
+
+
+    end_time = time.time()
+    console.print(f"mrcb运行结束,本次运行总耗时{humanfriendly.format_timespan(end_time - start_time)}")
