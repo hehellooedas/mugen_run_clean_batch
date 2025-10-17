@@ -106,7 +106,7 @@ def init_postgresql():
             time.sleep(3)
             service.Unit.Start(b'replace')
             if service.Unit.ActiveState == b'active':
-                print(f"mrcb准备:启动{service.Service.BusName}服务失败.")
+                print(f"mrcb准备:启动postgresql服务失败.")
 
 
     # 操作并初始化pgsql表和库
@@ -118,10 +118,24 @@ def init_postgresql():
     except ImportError:
         print(f"mrcb准备:引入psycopg2库失败.")
         sys.exit(1)
+    try:
+        subprocess.run(
+            """
+            sudo -u postgres psql -c "ALTER USER postgres WITH PASSWORD '123456'";
+            """,
+            shell=True,
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+        )
+    except subprocess.CalledProcessError as e:
+        print(f"mrcb准备:为postgresql修改初始密码失败.错误原因:{e.stderr}")
+        sys.exit(1)
     with pgsql.connect(
-        host='/var/run/postgresq;', # 不使用口令认证而是Unix socket
-        dbname='postgres',
+        host='127.0.0.1', # 不使用口令认证而是tcp
+        port=5432,
         user='postgres',            # 系统中的user
+        password='123456',
     ) as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT datname FROM pg_database WHERE datistemplate = false;")
