@@ -3,6 +3,7 @@
 
 import subprocess
 
+from psutil import users
 from rich.console import Console
 from rich.table import Table
 from rich.traceback import install
@@ -27,7 +28,7 @@ from io import BytesIO
 from openpyxl import load_workbook
 import zstandard as zstd
 from paramiko import SSHClient
-import psycopg as pgsql
+import psycopg2 as pgsql
 from concurrent.futures import ThreadPoolExecutor
 from queue import Queue,Empty
 
@@ -35,7 +36,7 @@ from queue import Queue,Empty
 
 setproctitle('mrcb')    # 设置mrcb的进程名称
 
-install(show_locals=True)
+#install(show_locals=True)
 console = Console(color_system='256',file=sys.stdout)
 
 logging.basicConfig(
@@ -155,19 +156,19 @@ def check_config(config:dict):
         drive_url:str = config.get('drive','')
         if drive_url == '' or check_url(drive_url) is False:
             console.print(f'您输入的drive_url字段url无法访问,请检查')
-            sys.exit(1)
+            #sys.exit(1)
         result['drive_url'] = drive_url
         
         VIRT_CODE = config.get('VIRT_CODE','')
         if VIRT_CODE == '' or check_url(VIRT_CODE) is False:
             console.print(f"您输入的VIRT_CODE字段url无法访问,请检查")
-            sys.exit(1)
+            #sys.exit(1)
         result['VIRT_CODE'] = VIRT_CODE
 
         VIRT_VARS = config.get('VIRT_VARS','')
         if VIRT_VARS == '' or check_url(VIRT_VARS) is False:
             console.print(f"您输入的VIRT_VARS字段url无法访问,请检查")
-            sys.exit(1)
+            #sys.exit(1)
         result['VIRT_VARS'] = VIRT_VARS
     elif platform == "uboot":
         pass
@@ -183,15 +184,37 @@ def check_config(config:dict):
     if from_to == []:  # 由mrcb自动判断
         pass
 
+    all_mugen_tests = []
     # 获取所有需要测试的mugen测试用例名
     for i in range(from_to[0],from_to[1]+1):
-        mugen_test(
+        each_mugen_test = mugen_test(
             TestSuite = ws.cell(row=i,column=1).value,
             TestCase = ws.cell(row=i,column=2).value,
         )
+        all_mugen_tests.append(each_mugen_test)
 
+    # 校验测试用例的合法性
+    for TestSuite,TestCase in all_mugen_tests:
+        if TestSuite + '.json' in all_mugen_json_files:
+            pass
+        else:
+            print(f"{TestSuite}不在mugen测试范围里,无法找到{TestSuite}.json文件.")
+            #sys.exit(1)
+        with open(mrcb_mugen_dir / 'suite2cases' / f'{TestSuite}.json','r',encoding='utf-8') as f:
+            TestSuite_json = json.load(f)
+            print(TestSuite_json)
+            # if TestCase not in (v for each in TestSuite_json['cases'] for k,v in each):
+            #     print(f"{TestSuite}中不含有{TestCase},请仔细检查excel文件!")
 
-
+    # 检测完成后建立数据表,将运行信息登记
+    with pgsql.connect(
+        host = 'localhost',
+        port = 5432,
+        user = 'postgres',
+        password = '',
+    ) as conn:
+        cursor = conn.cursor()
+        
 
 
 def get_analysis_mugen():
@@ -214,7 +237,9 @@ def get_analysis_mugen():
         console.print(f"git clone失败,{e}")
         sys.exit(1)
     # 获取所有有可能用到的json文件的文件名
+    global all_mugen_json_files
     all_mugen_json_files = list(os.walk(mrcb_mugen_dir / 'suite2cases'))[0][2]
+
 
 
 
@@ -227,22 +252,20 @@ def input_from_excel():
     all_mugen_tests = []
     for i in range(from_to[0],from_to[1]+1):
         all_mugen_tests.append(mugen_test(TestSuite=ws[f'a{i}'].value,TestCase=ws[f'b{i}'].value))
-    print(all_mugen_tests[0].TestSuite)
-    print(all_mugen_tests[0].TestCase)
 
 
 if __name__ == "__main__":
     start_time = time.time()
 
     # 先初始化mugen
-    #get_analysis_mugen()
+    get_analysis_mugen()
     config:dict = parse_config()
     input_from_excel()
-    #check_config(config)
+    check_config(config)
 
     # 正式开始测试
-    with ThreadPoolExecutor(max_workers=cpu_count) as executor:
-        executor.submit(put_mugen_test_to_queue)
+    # with ThreadPoolExecutor(max_workers=cpu_count) as executor:
+    #     executor.submit(put_mugen_test_to_queue)
 
 
     end_time = time.time()

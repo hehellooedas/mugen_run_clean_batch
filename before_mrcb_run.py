@@ -121,7 +121,7 @@ def init_postgresql():
     try:
         subprocess.run(
             """
-            sudo -u postgres psql -c "ALTER USER postgres WITH PASSWORD '123456'";
+            sudo -u postgres psql -d postgres -c "ALTER USER postgres WITH PASSWORD '123456'";
             """,
             shell=True,
             check=True,
@@ -132,13 +132,15 @@ def init_postgresql():
         print(f"mrcb准备:为postgresql修改初始密码失败.错误原因:{e.stderr}")
         sys.exit(1)
     with pgsql.connect(
-        host='127.0.0.1', # 不使用口令认证而是tcp
+        host='127.0.0.1',
         port=5432,
-        user='postgres',            # 系统中的user
+        user='postgres',
         password='123456',
     ) as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT datname FROM pg_database WHERE datistemplate = false;")
+        result = cursor.fetchall()
+        print(result)
 
 
 if __name__ == "__main__":
