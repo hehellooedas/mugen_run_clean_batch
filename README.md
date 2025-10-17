@@ -8,7 +8,7 @@ mrcb将深入研究[mugen项目](https://gitee.com/openeuler/mugen)的构造，�
 
 
 <br>
-
+mrcb应运行在x86_64指令集机器上
 
 
 ## 如何使用？
@@ -25,15 +25,11 @@ cd ugen_run_clean_batch
 * 运行前安装环境
 
 ```
-dnf install gcc python python3-devel python3-pip python3-Cython python3-psycopg2 python3-paramiko systemd-devel libxml2 libxslt libxslt-devel libxml2-devel tmux
-pip install --upgrade pip setuptools
-pip install -r requirements.txt
+# 安装Python3解释器
+dnf install -y python3
 
-# 如果遇到SSL问题
-pip install --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host=files.pythonhosted.org -r requirements.txt
-
-# 仍然提示SSL错误
-dnf install ntp
-ntpdate cn.pool.ntp.org
+chmod +x main.py before_mrcb_run.py
+./before_mrcb_run.py
 ```
 
+* 编写正确的配置文件

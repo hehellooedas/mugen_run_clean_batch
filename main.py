@@ -27,6 +27,7 @@ from io import BytesIO
 from openpyxl import load_workbook
 import zstandard as zstd
 from paramiko import SSHClient
+import psycopg as pgsql
 from concurrent.futures import ThreadPoolExecutor
 from queue import Queue,Empty
 
@@ -212,22 +213,31 @@ def get_analysis_mugen():
     except subprocess.CalledProcessError as e:
         console.print(f"git clone失败,{e}")
         sys.exit(1)
-    # 获取所有有可能用到的json文件
+    # 获取所有有可能用到的json文件的文件名
     all_mugen_json_files = list(os.walk(mrcb_mugen_dir / 'suite2cases'))[0][2]
 
 
 
 def input_from_excel():
-    pass
+    input_excel_file = config.get('input_excel')
+    wb = load_workbook(input_excel_file,read_only=True)
+    ws = wb.active
 
+    from_to = config.get('from_to')
+    all_mugen_tests = []
+    for i in range(from_to[0],from_to[1]+1):
+        all_mugen_tests.append(mugen_test(TestSuite=ws[f'a{i}'].value,TestCase=ws[f'b{i}'].value))
+    print(all_mugen_tests[0].TestSuite)
+    print(all_mugen_tests[0].TestCase)
 
 
 if __name__ == "__main__":
     start_time = time.time()
 
     # 先初始化mugen
-    get_analysis_mugen()
-    config = parse_config()
+    #get_analysis_mugen()
+    config:dict = parse_config()
+    input_from_excel()
     #check_config(config)
 
     # 正式开始测试

@@ -1,0 +1,127 @@
+#! /usr/bin/env python3
+# encoding: utf-8
+
+"""
+    在mrcb脚本运行前运行该脚本初始化环境和安装必要rpm包/Python第三方库
+    以确保mrcb运行正常,简化用户操作
+"""
+
+import subprocess
+import sys
+import platform
+import time
+
+
+
+def flash_time():
+    try:
+        subprocess.run(
+            "dnf install -y ntp && ntpdate cn.pool.ntp.org",
+            shell=True,
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+        )
+    except subprocess.CalledProcessError as e:
+        print(f"mrcb准备:刷新时间失败.报错信息:{e.stderr}")
+        sys.exit(1)
+
+
+def check_arch():
+    if platform.machine() != 'x86_64':
+        print(f"mrcb准备:当前机器不为x86_64,不符合mrcb项目的运行要求,请更换机器架构到x86_64.")
+        sys.exit(1)
+
+
+def install_needed_rpms():
+    try:
+        subprocess.run(
+            "dnf install -y gcc python3-devel python3-pip python3-Cython python3-psycopg2 python3-paramiko systemd-devel libffi-devel pkgconf libxml2 libxslt libxslt-devel libxml2-devel tmux postgresql",
+            shell=True,
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+        )
+    except subprocess.CalledProcessError as e:
+        print(f"mrcb准备:安装必备的rpm包失败.报错信息:{e.stderr}")
+        sys.exit(1)
+    try:
+        import psycopg2 as pgsql
+    except ImportError:
+        print(f"mrcb准备:引入psycopg2库失败.")
+        sys.exit(1)
+
+
+
+def install_needed_python_packages():
+    try:
+        subprocess.run(
+            "pip install --upgrade pip setuptools && pip install --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host=files.pythonhosted.org -r requirements.txt",
+            shell=True,check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+        )
+    except subprocess.CalledProcessError as e:
+        print(f"mrcb准备:安装必备的Python第三方库失败.报错信息:{e.stderr}")
+        sys.exit(1)
+
+
+def init_postgresql():
+    # 安装rpm包
+    try:
+        subprocess.run(
+            "dnf install -y postgresql postgresql-server",
+            shell=True,
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+        )
+    except subprocess.CalledProcessError as e:
+        print(f"mrcb准备:安装postgresql数据库失败.报错信息:{e.stderr}")
+        sys.exit(1)
+    # 初始化pgsql
+    try:
+        subprocess.run(
+            "postgresql-setup --initdb",
+            shell=True,
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+        )
+    except subprocess.CalledProcessError as e:
+        print(f"mrcb准备:初始化postgresql数据库失败.报错信息:{e.stderr}")
+        sys.exit(1)
+
+    # 导入pystemd包
+    try:
+        from pystemd.systemd1 import Unit
+    except ImportError:
+        print(f"mrcb准备:Python无法操作systemd.")
+        sys.exit(1)
+
+    def service_load_and_start(service:Unit):
+        try:
+            service.Unit.Start(b'replace')
+        except:
+            time.sleep(3)
+            service.load(force=True)
+            service.Unit.Start(b'replace')
+        if service.Unit.ActiveState == b'active':
+            time.sleep(3)
+            service.Unit.Start(b'replace')
+            if service.Unit.ActiveState == b'active':
+                print(f"mrcb准备:启动{service.Service.BusName}服务失败.")
+
+
+    # 操作并初始化pgsql表和库
+    postgresqld = Unit('postgresqld.service',_autoload=True)
+    service_load_and_start(postgresqld)
+
+
+
+if __name__ == "__main__":
+    check_arch()
+    flash_time()
+    install_needed_rpms()
+    install_needed_python_packages()
+    init_postgresql()
