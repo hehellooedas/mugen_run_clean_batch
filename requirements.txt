@@ -6,3 +6,4 @@ tqdm
 rich
 psutil
 humanfriendly
+pystemd

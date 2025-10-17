@@ -10,7 +10,7 @@ import subprocess
 import sys
 import platform
 import time
-
+from pathlib import Path
 
 
 def flash_time():
@@ -45,11 +45,6 @@ def install_needed_rpms():
     except subprocess.CalledProcessError as e:
         print(f"mrcb准备:安装必备的rpm包失败.报错信息:{e.stderr}")
         sys.exit(1)
-    try:
-        import psycopg2 as pgsql
-    except ImportError:
-        print(f"mrcb准备:引入psycopg2库失败.")
-        sys.exit(1)
 
 
 
@@ -80,17 +75,18 @@ def init_postgresql():
         print(f"mrcb准备:安装postgresql数据库失败.报错信息:{e.stderr}")
         sys.exit(1)
     # 初始化pgsql
-    try:
-        subprocess.run(
-            "postgresql-setup --initdb",
-            shell=True,
-            check=True,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.PIPE,
-        )
-    except subprocess.CalledProcessError as e:
-        print(f"mrcb准备:初始化postgresql数据库失败.报错信息:{e.stderr}")
-        sys.exit(1)
+    if not Path("/var/lib/pgsql/data/").exists():   # 只有在pgsql未初始化时才需要初始化,不必重复初始化
+        try:
+            subprocess.run(
+                "postgresql-setup --initdb",
+                shell=True,
+                check=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
+            )
+        except subprocess.CalledProcessError as e:
+            print(f"mrcb准备:初始化postgresql数据库失败.报错信息:{e.stderr}")
+            sys.exit(1)
 
     # 导入pystemd包
     try:
@@ -114,9 +110,21 @@ def init_postgresql():
 
 
     # 操作并初始化pgsql表和库
-    postgresqld = Unit('postgresqld.service',_autoload=True)
-    service_load_and_start(postgresqld)
+    postgresql = Unit('postgresql.service',_autoload=True)
+    service_load_and_start(postgresql)
 
+    try:
+        import psycopg2 as pgsql
+    except ImportError:
+        print(f"mrcb准备:引入psycopg2库失败.")
+        sys.exit(1)
+    with pgsql.connect(
+        host='/var/run/postgresq;', # 不使用口令认证而是Unix socket
+        dbname='postgres',
+        user='postgres',            # 系统中的user
+    ) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT datname FROM pg_database WHERE datistemplate = false;")
 
 
 if __name__ == "__main__":
