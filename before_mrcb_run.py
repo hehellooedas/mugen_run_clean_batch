@@ -14,6 +14,16 @@ from pathlib import Path
 
 
 
+def close_selinux():
+    shutil.copy2(src=Path('resources/selinux.conf'),dst=Path('/etc/selinux/config'))
+    os.chmod(Path('/etc/selinux/config'),mode=0o644)
+    subprocess.run(
+        "setenforce 0",
+        shell=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
 
 def flash_time():
     try:
@@ -33,6 +43,9 @@ def check_arch():
     if platform.machine() != 'x86_64':
         print(f"mrcb准备:当前机器不为x86_64,不符合mrcb项目的运行要求,请更换机器架构到x86_64.")
         sys.exit(1)
+
+    if '9950x' in platform.processor():
+        print("当前9950x机器非常适合用于运行mrcb项目!")
 
 
 def install_needed_rpms():
@@ -98,6 +111,7 @@ def init_postgresql():
     os.chmod(Path('/var/lib/pgsql/data/postgresql.conf'), 0o600)
     os.chmod(Path('/var/lib/pgsql/data/pg_hba.conf'), 0o600)
 
+
     # 导入pystemd包
     try:
         from pystemd.systemd1 import Unit
@@ -115,13 +129,14 @@ def init_postgresql():
         if service.Unit.ActiveState == b'active':
             time.sleep(3)
             service.Unit.Start(b'replace')
-            if service.Unit.ActiveState == b'active':
+            if service.Unit.ActiveState != b'active':
                 print(f"mrcb准备:启动postgresql服务失败.")
 
     time.sleep(3)
     # 操作并初始化pgsql表和库
     postgresql = Unit('postgresql.service',_autoload=True)
     service_load_and_start(postgresql)
+
     time.sleep(3)
     try:
         from psycopg2.pool import SimpleConnectionPool
@@ -143,8 +158,9 @@ def init_postgresql():
 
 
 if __name__ == "__main__":
-    check_arch()
-    flash_time()
-    install_needed_rpms()
-    install_needed_python_packages()
-    init_postgresql()
+    close_selinux()         # 关闭selinux
+    check_arch()            # 检查当前机器架构是否满足mrcb运行
+    flash_time()            # 设置时间
+    install_needed_rpms()   # 安装更必备的rpm包
+    install_needed_python_packages()    # 安装必备的Python第三方库
+    init_postgresql()       # 初始化postgresql数据库

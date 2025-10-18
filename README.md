@@ -8,7 +8,7 @@ mrcb将深入研究[mugen项目](https://gitee.com/openeuler/mugen)的构造，�
 
 
 <br>
-mrcb应运行在x86_64 openEuler上,请勿引入Fedora的repo源.
+mrcb应运行在x86_64 openEuler上,请勿引入Fedora的repo源.必须以root身份运行,运行前建议先关闭selinux(运行时也会自动关闭).
 
 
 ## 如何使用？
@@ -28,8 +28,25 @@ cd ugen_run_clean_batch
 # 安装Python3解释器
 dnf install -y python3
 
-chmod +x main.py before_mrcb_run.py
 ./before_mrcb_run.py
 ```
 
 * 编写正确的配置文件
+下面是一个具体的例子
+```angular2html
+arch=''
+platform=''
+drive_url=''
+drive_type=''
+VIRT_CODE=''
+VIRT_VARS=''
+input_excel=''
+from_to=[x,y]
+
+```
+
+
+* 运行主脚本
+```
+./main.py
+```
