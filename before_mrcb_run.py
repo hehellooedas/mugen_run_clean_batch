@@ -13,6 +13,8 @@ import time
 from pathlib import Path
 
 
+
+
 def flash_time():
     try:
         subprocess.run(
@@ -114,33 +116,22 @@ def init_postgresql():
     service_load_and_start(postgresql)
 
     try:
-        import psycopg2 as pgsql
+        from psycopg2.pool import SimpleConnectionPool
     except ImportError:
         print(f"mrcb准备:引入psycopg2库失败.")
         sys.exit(1)
-    try:
-        subprocess.run(
-            """
-            sudo -u postgres psql -d postgres -c "ALTER USER postgres WITH PASSWORD '123456'";
-            """,
-            shell=True,
-            check=True,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.PIPE,
-        )
-    except subprocess.CalledProcessError as e:
-        print(f"mrcb准备:为postgresql修改初始密码失败.错误原因:{e.stderr}")
-        sys.exit(1)
-    with pgsql.connect(
-        host='127.0.0.1',
-        port=5432,
+    pgsql_pool = SimpleConnectionPool(
+        minconn=1,maxconn=4,
+        host='localhost',
+        port='5432',
         user='postgres',
-        password='123456',
-    ) as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT datname FROM pg_database WHERE datistemplate = false;")
-        result = cursor.fetchall()
-        print(result)
+        password='postgres',
+    )
+    with pgsql_pool.getconn() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute("SELECT datname FROM pg_database WHERE datistemplate = false;")
+            result = cursor.fetchall()
+            print(result)
 
 
 if __name__ == "__main__":

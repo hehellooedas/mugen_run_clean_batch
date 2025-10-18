@@ -28,7 +28,7 @@ from io import BytesIO
 from openpyxl import load_workbook
 import zstandard as zstd
 from paramiko import SSHClient
-import psycopg2 as pgsql
+from psycopg2.pool import ThreadedConnectionPool
 from concurrent.futures import ThreadPoolExecutor
 from queue import Queue,Empty
 
@@ -47,6 +47,14 @@ logging.basicConfig(
 
 
 cpu_count = os.cpu_count()
+pgsql_pool = ThreadedConnectionPool(
+    minconn=1,maxconn=cpu_count,
+    host='localhost',
+    port=5432,
+    user='postgres',
+    password='postgres',
+)
+
 
 # mugen测试用例描述
 mugen_test = namedtuple(
@@ -203,17 +211,13 @@ def check_config(config:dict):
         with open(mrcb_mugen_dir / 'suite2cases' / f'{TestSuite}.json','r',encoding='utf-8') as f:
             TestSuite_json = json.load(f)
             print(TestSuite_json)
-            # if TestCase not in (v for each in TestSuite_json['cases'] for k,v in each):
-            #     print(f"{TestSuite}中不含有{TestCase},请仔细检查excel文件!")
+            if TestCase not in (v for each in TestSuite_json['cases'] for k,v in each):
+                print(f"{TestSuite}中不含有{TestCase},请仔细检查excel文件!")
 
     # 检测完成后建立数据表,将运行信息登记
-    with pgsql.connect(
-        host = 'localhost',
-        port = 5432,
-        user = 'postgres',
-        password = '',
-    ) as conn:
-        cursor = conn.cursor()
+    with pgsql_pool.getconn() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute('select * from mugen_run_clean_batch;')
         
 
 
