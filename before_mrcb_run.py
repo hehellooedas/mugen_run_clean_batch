@@ -167,11 +167,12 @@ def init_postgresql():
     except ImportError:
         print(f"mrcb准备:引入psycopg2库失败.")
         sys.exit(1)
-    cmd = r'''
+
+    cmd = r'''cd &&
     psql -tAc "SELECT 1 FROM pg_database WHERE datname = 'mugen_run_clean_batch'" | grep -q 1 ||
-    psql -v ON_ERROR_STOP=1 -d postgres -c "CREATE DATABASE mugen_run_clean_batch ENCODING 'UTF8' TEMPLATE template0;"
+    psql -v ON_ERROR_STOP=1 -d postgres -c "CREATE DATABASE mugen_run_clean_batch ENCODING 'UTF8' TEMPLATE template0; -D /var/lib/pgsql"
     '''
-    # 选择其一：sudo / su / runuser
+
     subprocess.run(['runuser', '-u', 'postgres', '--', 'bash', '-lc', cmd], check=True)
 
 
