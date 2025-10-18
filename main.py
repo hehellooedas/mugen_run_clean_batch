@@ -3,7 +3,6 @@
 
 import subprocess
 
-from psutil import users
 from rich.console import Console
 from rich.table import Table
 from rich.traceback import install
@@ -81,6 +80,9 @@ mrcb_work_dir = mrcb_dir / f"workdir_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 mrcb_firmware_dir = mrcb_work_dir / 'firmware'   # 存放固件
 mrcb_mugen_dir = mrcb_work_dir / 'mugen'         # 存放mugen项目
 mrcb_runtime_dir = mrcb_work_dir / 'runtime'
+
+single_machine_tests = []
+multi_machine_tests = []
 
 
 # 当前项目支持的架构和启动平台
@@ -213,13 +215,17 @@ def check_config(config:dict):
         with open(mrcb_mugen_dir / 'suite2cases' / f'{TestSuite}.json','r',encoding='utf-8') as f:
             TestSuite_json = json.load(f)
             print(TestSuite_json)
-            if TestCase not in (v for each in TestSuite_json['cases'] for k,v in each):
+            if TestCase not in (testcase for each in TestSuite_json['cases'] for name,testcase in each.item()):
                 print(f"{TestSuite}中不含有{TestCase},请仔细检查excel文件!")
 
-    # 检测完成后建立数据表,将运行信息登记
-    with pgsql_pool.getconn() as conn:
-        with conn.cursor() as cursor:
-            cursor.execute('select * from mugen_run_clean_batch;')
+    # # 检测完成后建立数据表,将运行信息登记
+    # with pgsql_pool.getconn() as conn:
+    #     with conn.cursor() as cursor:
+    #         cursor.execute("""
+    #         intert into mugen_run_clean_batch values(
+    #
+    #         );
+    #     """)
         
 
 
