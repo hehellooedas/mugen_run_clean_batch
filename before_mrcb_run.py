@@ -131,6 +131,7 @@ def init_postgresql():
             service.Unit.Start(b'replace')
             if service.Unit.ActiveState != b'active':
                 print(f"mrcb准备:启动postgresql服务失败.")
+                sys.exit(1)
 
     time.sleep(3)
     # 操作并初始化pgsql表和库
@@ -152,7 +153,7 @@ def init_postgresql():
     )
     with pgsql_pool.getconn() as conn:
         with conn.cursor() as cursor:
-            cursor.execute("SELECT datname FROM pg_database WHERE datistemplate = false;")
+            cursor.execute("create database mugen_run_clean_batch if not exists;")
             result = cursor.fetchall()
             print(result)
 

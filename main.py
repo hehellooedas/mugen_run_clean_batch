@@ -74,11 +74,13 @@ def put_mugen_test_to_queue(mugen_test_list:list):
 
 
 
+
 # mrcb存放资源的临时目录
 mrcb_dir = Path('.')
 mrcb_work_dir = mrcb_dir / f"workdir_{datetime.now().strftime('%Y%m%d_%H%M%S')}" # 本次运行mrcb创建的工作目录
 mrcb_firmware_dir = mrcb_work_dir / 'firmware'   # 存放固件
 mrcb_mugen_dir = mrcb_work_dir / 'mugen'         # 存放mugen项目
+mrcb_runtime_dir = mrcb_work_dir / 'runtime'
 
 
 # 当前项目支持的架构和启动平台
@@ -203,7 +205,7 @@ def check_config(config:dict):
 
     # 校验测试用例的合法性
     for TestSuite,TestCase in all_mugen_tests:
-        if TestSuite + '.json' in all_mugen_json_files:
+        if TestSuite + '.json' in mugen_suite_jsons:
             pass
         else:
             print(f"{TestSuite}不在mugen测试范围里,无法找到{TestSuite}.json文件.")
@@ -241,8 +243,15 @@ def get_analysis_mugen():
         console.print(f"git clone失败,{e}")
         sys.exit(1)
     # 获取所有有可能用到的json文件的文件名
-    global all_mugen_json_files
-    all_mugen_json_files = list(os.walk(mrcb_mugen_dir / 'suite2cases'))[0][2]
+    global mugen_suite_jsons, mugen_cli_test_jsons, mugen_doc_test_jsons, mugen_fs_test_jsons, mugen_network_test_jsons, mugen_service_jsons, mugen_smoke_test_jsons, mugen_system_integration_jsons
+    mugen_suite_jsons = list(os.walk(mrcb_mugen_dir / 'suite2cases'))[0][2]
+    mugen_cli_test_jsons = list(os.walk(mrcb_mugen_dir / 'suite2cases' / 'cli-test'))[0][2]
+    mugen_doc_test_jsons = list(os.walk(mrcb_mugen_dir / 'suite2cases' / 'doc-test'))[0][2]
+    mugen_fs_test_jsons = list(os.walk(mrcb_mugen_dir / 'suite2cases' / 'fs-test'))[0][2]
+    mugen_network_test_jsons = list(os.walk(mrcb_mugen_dir / 'suite2cases' / 'network_test'))[0][2]
+    mugen_service_jsons = list(os.walk(mrcb_mugen_dir / 'suite2cases' / 'service'))[0][2]
+    mugen_smoke_test_jsons = list(os.walk(mrcb_mugen_dir / 'suite2cases' / 'smoke-test'))[0][2]
+    mugen_system_integration_jsons = list(os.walk(mrcb_mugen_dir / 'suite2cases' / 'system-integration'))[0][2]
 
 
 
