@@ -7,7 +7,7 @@
 """
 import shutil
 import subprocess
-import sys
+import sys,os
 import platform
 import time
 from pathlib import Path
@@ -91,8 +91,12 @@ def init_postgresql():
             sys.exit(1)
     time.sleep(3)
 
-    shutil.move(src=Path('resources/postgresql.conf'), dst=Path('/var/lib/pgsql/data/postgresql.conf'))
-    shutil.move(src=Path('resources/pg_hba.conf'), dst=Path('/var/lib/pgsql/data/pg_hba.conf'))
+    shutil.copy2(src=Path('resources/postgresql.conf'), dst=Path('/var/lib/pgsql/data/postgresql.conf'))
+    shutil.copy2(src=Path('resources/pg_hba.conf'), dst=Path('/var/lib/pgsql/data/pg_hba.conf'))
+    shutil.chown(Path('/var/lib/pgsql/data/postgresql.conf'),user='postgres',group='postgres')
+    shutil.chown(Path('/var/lib/pgsql/data/pg_hba.conf'), user='postgres', group='postgres')
+    os.chmod(Path('/var/lib/pgsql/data/postgresql.conf'), 0o600)
+    os.chmod(Path('/var/lib/pgsql/data/pg_hba.conf'), 0o600)
 
     # 导入pystemd包
     try:
