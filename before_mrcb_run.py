@@ -67,6 +67,8 @@ def check_arch():
 
     if '9950x' in platform.processor():
         print("当前9950x机器非常适合用于运行mrcb项目!")
+    if os.cpu_count() <= 4:
+        print("当前机器的CPU核心数有点少~~~")
 
 
 def install_needed_rpms():
@@ -165,22 +167,12 @@ def init_postgresql():
     except ImportError:
         print(f"mrcb准备:引入psycopg2库失败.")
         sys.exit(1)
-    pgsql_pool = SimpleConnectionPool(
-        minconn=1,maxconn=4,
-        host='localhost',
-        port='5432',
-        user='postgres',
-        password='postgres',dbname='postgres',
-    )
-    with pgsql_pool.getconn() as conn:
-        conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
-        with conn.cursor() as cursor:
-            try:
-                cursor.execute("""
-                    create database mugen_run_clean_batch ENCODING "UTF8";
-                """)
-            except errors.DuplicateDatabase:    # 数据库已存在则忽略
-                print("数据库已存在,继续执行")
+    cmd = r'''
+    psql -tAc "SELECT 1 FROM pg_database WHERE datname = 'mugen_run_clean_batch'" | grep -q 1 ||
+    psql -v ON_ERROR_STOP=1 -d postgres -c "CREATE DATABASE mugen_run_clean_batch ENCODING 'UTF8' TEMPLATE template0;"
+    '''
+    # 选择其一：sudo / su / runuser
+    subprocess.run(['runuser', '-u', 'postgres', '--', 'bash', '-lc', cmd], check=True)
 
 
 if __name__ == "__main__":
