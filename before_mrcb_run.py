@@ -12,8 +12,6 @@ import platform
 import time
 from pathlib import Path
 
-from psycopg2 import errors
-from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 
 
 def close_selinux():

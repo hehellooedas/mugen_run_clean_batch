@@ -245,13 +245,13 @@ def get_analysis_mugen():
     # 获取所有有可能用到的json文件的文件名
     global mugen_suite_jsons, mugen_cli_test_jsons, mugen_doc_test_jsons, mugen_fs_test_jsons, mugen_network_test_jsons, mugen_service_jsons, mugen_smoke_test_jsons, mugen_system_integration_jsons
     mugen_suite_jsons = list(os.walk(mrcb_mugen_dir / 'suite2cases'))[0][2]
-    mugen_cli_test_jsons = list(os.walk(mrcb_mugen_dir / 'suite2cases' / 'cli-test'))[0][2]
-    mugen_doc_test_jsons = list(os.walk(mrcb_mugen_dir / 'suite2cases' / 'doc-test'))[0][2]
-    mugen_fs_test_jsons = list(os.walk(mrcb_mugen_dir / 'suite2cases' / 'fs-test'))[0][2]
-    mugen_network_test_jsons = list(os.walk(mrcb_mugen_dir / 'suite2cases' / 'network_test'))[0][2]
-    mugen_service_jsons = list(os.walk(mrcb_mugen_dir / 'suite2cases' / 'service'))[0][2]
-    mugen_smoke_test_jsons = list(os.walk(mrcb_mugen_dir / 'suite2cases' / 'smoke-test'))[0][2]
-    mugen_system_integration_jsons = list(os.walk(mrcb_mugen_dir / 'suite2cases' / 'system-integration'))[0][2]
+    mugen_cli_test_jsons = list(os.walk(mrcb_mugen_dir / 'suite2cases/mugen_baseline_json' / 'cli-test'))[0][2]
+    mugen_doc_test_jsons = list(os.walk(mrcb_mugen_dir / 'suite2cases/mugen_baseline_json' / 'doc-test'))[0][2]
+    mugen_fs_test_jsons = list(os.walk(mrcb_mugen_dir / 'suite2cases/mugen_baseline_json' / 'fs-test'))[0][2]
+    mugen_network_test_jsons = list(os.walk(mrcb_mugen_dir / 'suite2cases/mugen_baseline_json' / 'network_test'))[0][2]
+    mugen_service_jsons = list(os.walk(mrcb_mugen_dir / 'suite2cases/mugen_baseline_json' / 'service'))[0][2]
+    mugen_smoke_test_jsons = list(os.walk(mrcb_mugen_dir / 'suite2cases/mugen_baseline_json' / 'smoke-test'))[0][2]
+    mugen_system_integration_jsons = list(os.walk(mrcb_mugen_dir / 'suite2cases/mugen_baseline_json' / 'system-integration'))[0][2]
 
 
 
