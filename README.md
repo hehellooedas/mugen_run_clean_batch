@@ -8,7 +8,7 @@ mrcb将深入研究[mugen项目](https://gitee.com/openeuler/mugen)的构造，�
 
 
 <br>
-mrcb应运行在x86_64指令集机器上
+mrcb应运行在x86_64 openEuler上,请勿引入Fedora的repo源.
 
 
 ## 如何使用？

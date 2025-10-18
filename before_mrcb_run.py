@@ -5,7 +5,7 @@
     在mrcb脚本运行前运行该脚本初始化环境和安装必要rpm包/Python第三方库
     以确保mrcb运行正常,简化用户操作
 """
-
+import shutil
 import subprocess
 import sys
 import platform
@@ -89,6 +89,10 @@ def init_postgresql():
         except subprocess.CalledProcessError as e:
             print(f"mrcb准备:初始化postgresql数据库失败.报错信息:{e.stderr}")
             sys.exit(1)
+    time.sleep(3)
+
+    shutil.move(src=Path('resources/postgresql.conf'), dst=Path('/var/lib/pgsql/data/postgresql.conf'))
+    shutil.move(src=Path('resources/pg_hba.conf'), dst=Path('/var/lib/pgsql/data/pg_hba.conf'))
 
     # 导入pystemd包
     try:
@@ -110,11 +114,11 @@ def init_postgresql():
             if service.Unit.ActiveState == b'active':
                 print(f"mrcb准备:启动postgresql服务失败.")
 
-
+    time.sleep(3)
     # 操作并初始化pgsql表和库
     postgresql = Unit('postgresql.service',_autoload=True)
     service_load_and_start(postgresql)
-
+    time.sleep(3)
     try:
         from psycopg2.pool import SimpleConnectionPool
     except ImportError:
