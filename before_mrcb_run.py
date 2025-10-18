@@ -12,6 +12,8 @@ import platform
 import time
 from pathlib import Path
 
+from psycopg2 import errors
+from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 
 
 def close_selinux():
@@ -168,19 +170,25 @@ def init_postgresql():
         host='localhost',
         port='5432',
         user='postgres',
-        password='postgres',
+        password='postgres',dbname='postgres',
     )
     with pgsql_pool.getconn() as conn:
+        conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
         with conn.cursor() as cursor:
-            cursor.execute("create database mugen_run_clean_batch if not exists;")
-            result = cursor.fetchall()
-            print(result)
+            try:
+                cursor.execute("""
+                    create database mugen_run_clean_batch ENCODING "UTF8";
+                """)
+            except errors.DuplicateDatabase:    # 数据库已存在则忽略
+                print("数据库已存在,继续执行")
 
 
 if __name__ == "__main__":
+    print("开始做mrcb运行前准备工作:")
     close_selinux()         # 关闭selinux
     check_arch()            # 检查当前机器架构是否满足mrcb运行
     flash_time()            # 设置时间
     install_needed_rpms()   # 安装更必备的rpm包
     install_needed_python_packages()    # 安装必备的Python第三方库
     init_postgresql()       # 初始化postgresql数据库
+    print("mrcb准备工作完成!")
