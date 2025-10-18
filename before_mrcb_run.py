@@ -28,14 +28,33 @@ def close_selinux():
 def flash_time():
     try:
         subprocess.run(
-            "dnf install -y ntp && ntpdate cn.pool.ntp.org",
+            "dnf install -y chrony",
             shell=True,
             check=True,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.PIPE,
         )
+        with open(Path('/etc/chrony.conf'),'w') as f:
+            f.write(
+                """
+                    pool pool.ntp.org iburst
+                    server time.cloudflare.com iburst
+                    server time.google.com iburst
+                    makestep 1.0 3
+                    rtcsync
+                    logdir /var/log/chrony
+                """
+            )
+        chrony = subprocess.run(
+            "systemctl enable --now chronyd && chronyc sources -v",
+            shell=True,
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        print(f"mrcb准备:chrony信息{chrony.stdout.decode()}")
     except subprocess.CalledProcessError as e:
-        print(f"mrcb准备:刷新时间失败.报错信息:{e.stderr}")
+        print(f"mrcb准备:刷新时间失败.报错信息:{e.stderr.decode()}")
         sys.exit(1)
 
 
