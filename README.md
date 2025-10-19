@@ -28,6 +28,7 @@ cd ugen_run_clean_batch
 # 安装Python3解释器
 dnf install -y python3
 
+# 该脚本会自动安装项目运行所需的所有工具并初始化运行环境
 ./before_mrcb_run.py
 ```
 
@@ -38,6 +39,7 @@ arch=''
 platform=''
 drive_url=''
 drive_type=''
+compress_format=''
 VIRT_CODE=''
 VIRT_VARS=''
 input_excel=''

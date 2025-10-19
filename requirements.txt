@@ -8,3 +8,4 @@ psutil
 humanfriendly
 pystemd
 faker
+pysmartdl

@@ -3,6 +3,7 @@
 
 import subprocess
 
+import psycopg2
 from rich.console import Console
 from rich.table import Table
 from rich.traceback import install
@@ -30,6 +31,7 @@ from paramiko import SSHClient
 from psycopg2.pool import ThreadedConnectionPool
 from concurrent.futures import ThreadPoolExecutor
 from queue import Queue,Empty
+from pySmartDL import SmartDL
 
 
 
@@ -52,6 +54,7 @@ pgsql_pool = ThreadedConnectionPool(
     port=5432,
     user='postgres',
     password='postgres',
+    dbname='mugen_run_clean_batch',
 )
 
 
@@ -76,7 +79,8 @@ def put_mugen_test_to_queue(mugen_test_list:list):
 
 # mrcb存放资源的临时目录
 mrcb_dir = Path('.')
-mrcb_work_dir = mrcb_dir / f"workdir_{datetime.now().strftime('%Y%m%d_%H%M%S')}" # 本次运行mrcb创建的工作目录
+current_strftime = datetime.now().strftime('%Y%m%d_%H%M%S')
+mrcb_work_dir = mrcb_dir / f"workdir_{current_strftime}" # 本次运行mrcb创建的工作目录
 mrcb_firmware_dir = mrcb_work_dir / 'firmware'   # 存放固件
 mrcb_mugen_dir = mrcb_work_dir / 'mugen'         # 存放mugen项目
 mrcb_runtime_dir = mrcb_work_dir / 'runtime'
@@ -170,12 +174,24 @@ def check_config(config:dict):
             console.print(f'您输入的drive_url字段url无法访问,请检查')
             #sys.exit(1)
         result['drive_url'] = drive_url
+        global download_drive_file
+        download_drive_file:SmartDL = SmartDL(
+            urls = [
+                drive_url
+            ],
+            dest = str(mrcb_firmware_dir / drive_url.split('/')[-1]),
+            threads = cpu_count,
+            timeout=10,
+            request_args = headers
+        )
+        download_drive_file.start(blocking=False)
         
         VIRT_CODE = config.get('VIRT_CODE','')
         if VIRT_CODE == '' or check_url(VIRT_CODE) is False:
             console.print(f"您输入的VIRT_CODE字段url无法访问,请检查")
             #sys.exit(1)
         result['VIRT_CODE'] = VIRT_CODE
+
 
         VIRT_VARS = config.get('VIRT_VARS','')
         if VIRT_VARS == '' or check_url(VIRT_VARS) is False:
@@ -205,18 +221,34 @@ def check_config(config:dict):
         )
         all_mugen_tests.append(each_mugen_test)
 
+    conn = pgsql_pool.getconn()
+    cursor = conn.cursor()
     # 校验测试用例的合法性
     for TestSuite,TestCase in all_mugen_tests:
+        # suite2case
         if TestSuite + '.json' in mugen_suite_jsons:
+            with open(mrcb_mugen_dir / 'suite2cases' / f'{TestSuite}.json','r',encoding='utf-8') as f:
+                TestSuite_json = json.load(f)
+                print(TestSuite_json)
+                if TestCase not in (testcase for each in TestSuite_json['cases'] for name,testcase in each.items()):
+                    print(f"{TestSuite}中不含有{TestCase},请仔细检查excel文件!")
+                    sys.exit(1)
+        # baseline test
+        elif TestSuite + '.json' in mugen_cli_test_jsons:
             pass
-        else:
-            print(f"{TestSuite}不在mugen测试范围里,无法找到{TestSuite}.json文件.")
-            #sys.exit(1)
-        with open(mrcb_mugen_dir / 'suite2cases' / f'{TestSuite}.json','r',encoding='utf-8') as f:
-            TestSuite_json = json.load(f)
-            print(TestSuite_json)
-            if TestCase not in (testcase for each in TestSuite_json['cases'] for name,testcase in each.item()):
-                print(f"{TestSuite}中不含有{TestCase},请仔细检查excel文件!")
+        elif TestSuite + '.json' in mugen_doc_test_jsons:
+            pass
+        elif TestSuite + '.json' in mugen_fs_test_jsons:
+            pass
+        elif TestSuite + '.json' in mugen_network_test_jsons:
+            pass
+        elif TestSuite + '.json' in mugen_service_jsons:
+            pass
+        elif TestSuite + '.json' in mugen_system_integration_jsons:
+            pass
+    cursor.close()
+    pgsql_pool.putconn(conn)
+
 
     # # 检测完成后建立数据表,将运行信息登记
     # with pgsql_pool.getconn() as conn:
@@ -273,6 +305,33 @@ def input_from_excel():
         all_mugen_tests.append(mugen_test(TestSuite=ws[f'a{i}'].value,TestCase=ws[f'b{i}'].value))
 
 
+def init_postgresql():
+    with pgsql_pool.getconn() as conn:
+        cursor = conn.cursor()
+        cursor.execute(f"""
+        CREATE TABLE 'workdir_{current_strftime}' (
+            id integer NOT NULL PRIMARY KEY,
+            suite varchar(30) NOT NULL,
+            case varchar(30) NOT NULL,
+            desc_json json NOT NULL,
+            state boolean NOT NULL,
+            start_time timestamp NOT NULL,
+            end_time timestamp NOT NULL,
+            check_result char(7) NOT NULL,
+            output_log text,
+            failure_reason text
+        )
+        """)
+
+
+
+def make_openEuler_image():
+    """
+        用来制作openEuler的启动镜像模型
+    """
+    pass
+
+
 if __name__ == "__main__":
     start_time = time.time()
 
@@ -281,7 +340,8 @@ if __name__ == "__main__":
     config:dict = parse_config()
     input_from_excel()
     check_config(config)
-
+    init_postgresql()
+    make_openEuler_image()
     # 正式开始测试
     # with ThreadPoolExecutor(max_workers=cpu_count) as executor:
     #     executor.submit(put_mugen_test_to_queue)
