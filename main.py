@@ -171,12 +171,14 @@ def check_config(config:dict)->dict:
         sys.exit(1)
     result = {}
 
+    mrcb_runtime_dir.mkdir(exist_ok=True);mrcb_firmware_dir.mkdir(exist_ok=True)
     if arch == "RISC-V" and platform == "UEFI":
         drive_url:str = config.get('drive_url','')
         if drive_url == '' or check_url(drive_url) is False:
             console.print(f'您输入的drive_url字段url无法访问,请检查')
             #sys.exit(1)
         result['drive_url'] = drive_url
+
 
         download_drive_file:SmartDL = SmartDL(
             urls = [
@@ -298,6 +300,7 @@ def input_from_excel():
                     "values(%s,%s,%s) RETURNING id;"
                 ).format(sql.Identifier(f"workdir_{current_strftime}")),(TestSuite,TestCase,Json(TestSuite_json)))
                 conn.commit()
+                print(f"插入到数据库的是({TestSuite},{TestCase},{Json(TestSuite_json)}")
         # baseline test
         elif TestSuite + '.json' in mugen_cli_test_jsons:
             pass
@@ -342,7 +345,7 @@ def make_openEuler_image():
     """
         用来制作openEuler的启动镜像模型
     """
-    mrcb_runtime_default_dir.mkdir()
+    mrcb_runtime_default_dir.mkdir(parents=True)
 
 
 
