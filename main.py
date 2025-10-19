@@ -170,12 +170,12 @@ def check_config(config:dict)->dict:
     result = {}
 
     if arch == "RISC-V" and platform == "UEFI":
-        drive_url:str = config.get('drive','')
+        drive_url:str = config.get('drive_url','')
         if drive_url == '' or check_url(drive_url) is False:
             console.print(f'您输入的drive_url字段url无法访问,请检查')
             #sys.exit(1)
         result['drive_url'] = drive_url
-        global download_drive_file
+
         download_drive_file:SmartDL = SmartDL(
             urls = [
                 drive_url
@@ -183,9 +183,9 @@ def check_config(config:dict)->dict:
             dest = str(mrcb_firmware_dir / drive_url.split('/')[-1]),
             threads = min(cpu_count,16),
             timeout=10,
-            request_args = headers
+            progress_bar=True,
         )
-        download_drive_file.start(blocking=False)
+        download_drive_file.start(blocking=True)
         
         VIRT_CODE = config.get('VIRT_CODE','')
         if VIRT_CODE == '' or check_url(VIRT_CODE) is False:
@@ -210,7 +210,11 @@ def check_config(config:dict)->dict:
     if input_excel == '':
         console.print(f"input_excel字段不可以为空")
         sys.exit(1)
-
+    from_to = config.get('from_to',[])
+    if from_to is []:
+        print("from_to字段填写错误，请查看README中相关描述")
+        sys.exit(1)
+    result['from_to'] = from_to
     result['input_excel'] = input_excel
     return result
 
