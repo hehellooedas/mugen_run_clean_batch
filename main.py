@@ -292,7 +292,6 @@ def input_from_excel():
                 #print(TestSuite_json)
                 if TestCase not in (testcase for each in TestSuite_json['cases'] for name,testcase in each.items()):
                     print(f"{TestSuite}中不含有{TestCase},请仔细检查excel文件!")
-                    #sys.exit(1)
                 # 将获取到的信息写入数据库
                 cursor.execute(
                     sql.SQL(
@@ -300,20 +299,107 @@ def input_from_excel():
                     "values(%s,%s,%s) RETURNING id;"
                 ).format(sql.Identifier(f"workdir_{current_strftime}")),(TestSuite,TestCase,Json(TestSuite_json)))
                 conn.commit()
-                print(f"插入到数据库的是({TestSuite},{TestCase},{Json(TestSuite_json)}")
+
         # baseline test
         elif TestSuite + '.json' in mugen_cli_test_jsons:
-            pass
+            with open(mrcb_mugen_dir / 'suite2cases' / 'mugen_baseline_json' / 'cli-test' / f'{TestSuite}.json', 'r', encoding='utf-8') as f:
+                TestSuite_json = json.load(f)
+                if TestCase not in (testcase for each in TestSuite_json['cases'] for name, testcase in each.items()):
+                    print(f"{TestSuite}中不含有{TestCase},请仔细检查excel文件!")
+                # 将获取到的信息写入数据库
+                cursor.execute(
+                    sql.SQL(
+                        "insert into {} (testsuite,testcase,desc_json)"
+                        "values(%s,%s,%s) RETURNING id;"
+                    ).format(sql.Identifier(f"workdir_{current_strftime}")),
+                    (TestSuite, TestCase, Json(TestSuite_json)))
+                conn.commit()
+
         elif TestSuite + '.json' in mugen_doc_test_jsons:
-            pass
+            with open(mrcb_mugen_dir / 'suite2cases' / 'mugen_baseline_json' / 'doc-test' / f'{TestSuite}.json', 'r',
+                      encoding='utf-8') as f:
+                TestSuite_json = json.load(f)
+                if TestCase not in (testcase for each in TestSuite_json['cases'] for name, testcase in each.items()):
+                    print(f"{TestSuite}中不含有{TestCase},请仔细检查excel文件!")
+                # 将获取到的信息写入数据库
+                cursor.execute(
+                    sql.SQL(
+                        "insert into {} (testsuite,testcase,desc_json)"
+                        "values(%s,%s,%s) RETURNING id;"
+                    ).format(sql.Identifier(f"workdir_{current_strftime}")),
+                    (TestSuite, TestCase, Json(TestSuite_json)))
+                conn.commit()
         elif TestSuite + '.json' in mugen_fs_test_jsons:
-            pass
+            with open(mrcb_mugen_dir / 'suite2cases' / 'mugen_baseline_json' / 'fs-test' / f'{TestSuite}.json', 'r',
+                      encoding='utf-8') as f:
+                TestSuite_json = json.load(f)
+                if TestCase not in (testcase for each in TestSuite_json['cases'] for name, testcase in each.items()):
+                    print(f"{TestSuite}中不含有{TestCase},请仔细检查excel文件!")
+                # 将获取到的信息写入数据库
+                cursor.execute(
+                    sql.SQL(
+                        "insert into {} (testsuite,testcase,desc_json)"
+                        "values(%s,%s,%s) RETURNING id;"
+                    ).format(sql.Identifier(f"workdir_{current_strftime}")),
+                    (TestSuite, TestCase, Json(TestSuite_json)))
+                conn.commit()
         elif TestSuite + '.json' in mugen_network_test_jsons:
-            pass
+            with open(mrcb_mugen_dir / 'suite2cases' / 'mugen_baseline_json' / 'network_test' / f'{TestSuite}.json', 'r',
+                      encoding='utf-8') as f:
+                TestSuite_json = json.load(f)
+                if TestCase not in (testcase for each in TestSuite_json['cases'] for name, testcase in each.items()):
+                    print(f"{TestSuite}中不含有{TestCase},请仔细检查excel文件!")
+                # 将获取到的信息写入数据库
+                cursor.execute(
+                    sql.SQL(
+                        "insert into {} (testsuite,testcase,desc_json)"
+                        "values(%s,%s,%s) RETURNING id;"
+                    ).format(sql.Identifier(f"workdir_{current_strftime}")),
+                    (TestSuite, TestCase, Json(TestSuite_json)))
+                conn.commit()
         elif TestSuite + '.json' in mugen_service_jsons:
-            pass
+            with open(mrcb_mugen_dir / 'suite2cases' / 'mugen_baseline_json' / 'service' / f'{TestSuite}.json', 'r',
+                      encoding='utf-8') as f:
+                TestSuite_json = json.load(f)
+                if TestCase not in (testcase for each in TestSuite_json['cases'] for name, testcase in each.items()):
+                    print(f"{TestSuite}中不含有{TestCase},请仔细检查excel文件!")
+                # 将获取到的信息写入数据库
+                cursor.execute(
+                    sql.SQL(
+                        "insert into {} (testsuite,testcase,desc_json)"
+                        "values(%s,%s,%s) RETURNING id;"
+                    ).format(sql.Identifier(f"workdir_{current_strftime}")),
+                    (TestSuite, TestCase, Json(TestSuite_json)))
+                conn.commit()
+        elif TestSuite + '.json' in mugen_smoke_test_jsons:
+            with open(mrcb_mugen_dir / 'suite2cases' / 'mugen_baseline_json' / 'smoke-test' / f'{TestSuite}.json', 'r', encoding='utf-8') as f:
+                TestSuite_json = json.load(f)
+                if TestCase not in (testcase for each in TestSuite_json['cases'] for name, testcase in each.items()):
+                    print(f"{TestSuite}中不含有{TestCase},请仔细检查excel文件!")
+                # 将获取到的信息写入数据库
+                cursor.execute(
+                    sql.SQL(
+                        "insert into {} (testsuite,testcase,desc_json)"
+                        "values(%s,%s,%s) RETURNING id;"
+                    ).format(sql.Identifier(f"workdir_{current_strftime}")),
+                    (TestSuite, TestCase, Json(TestSuite_json)))
+                conn.commit()
         elif TestSuite + '.json' in mugen_system_integration_jsons:
-            pass
+            with open(mrcb_mugen_dir / 'suite2cases' / 'mugen_baseline_json' / 'system-integration' / f'{TestSuite}.json', 'r',
+                      encoding='utf-8') as f:
+                TestSuite_json = json.load(f)
+                if TestCase not in (testcase for each in TestSuite_json['cases'] for name, testcase in each.items()):
+                    print(f"{TestSuite}中不含有{TestCase},请仔细检查excel文件!")
+                # 将获取到的信息写入数据库
+                cursor.execute(
+                    sql.SQL(
+                        "insert into {} (testsuite,testcase,desc_json)"
+                        "values(%s,%s,%s) RETURNING id;"
+                    ).format(sql.Identifier(f"workdir_{current_strftime}")),
+                    (TestSuite, TestCase, Json(TestSuite_json)))
+                conn.commit()
+        else:
+            print(f"{TestSuite}-{TestCase}测试未在mugen中找到,请重新检查输入的excel文件.")
     cursor.close()
     pgsql_pool.putconn(conn)
 
