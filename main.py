@@ -28,6 +28,8 @@ from io import BytesIO
 from openpyxl import load_workbook
 import zstandard as zstd
 from paramiko import SSHClient
+from psycopg2 import sql
+from psycopg2.extras import Json
 from psycopg2.pool import ThreadedConnectionPool
 from concurrent.futures import ThreadPoolExecutor
 from queue import Queue,Empty
@@ -180,8 +182,8 @@ def check_config(config:dict)->dict:
             urls = [
                 drive_url
             ],
-            dest = str(mrcb_firmware_dir / drive_url.split('/')[-1]),
-            threads = min(cpu_count,16),
+            dest = str(mrcb_firmware_dir / PurePosixPath(drive_url).name),
+            threads = min(cpu_count,32),
             timeout=10,
             progress_bar=True,
         )
@@ -289,6 +291,12 @@ def input_from_excel():
                 if TestCase not in (testcase for each in TestSuite_json['cases'] for name,testcase in each.items()):
                     print(f"{TestSuite}中不含有{TestCase},请仔细检查excel文件!")
                     sys.exit(1)
+                # 将获取到的信息写入数据库
+                cursor.execute(
+                    sql.SQL(
+                    "insert into {} (testsuite,testcase,desc_json)"
+                    "values(%s,%s,%s) RETURNING id;"
+                ).format(sql.Identifier(f"workdir_{current_strftime}")),TestSuite,TestCase,Json(TestSuite_json))
         # baseline test
         elif TestSuite + '.json' in mugen_cli_test_jsons:
             pass
@@ -310,20 +318,22 @@ def input_from_excel():
 def init_postgresql():
     with pgsql_pool.getconn() as conn:
         cursor = conn.cursor()
-        cursor.execute(f"""
-        CREATE TABLE 'workdir_{current_strftime}' (
-            id integer NOT NULL PRIMARY KEY,
-            suite varchar(30) NOT NULL,
-            case varchar(30) NOT NULL,
-            desc_json json NOT NULL,
-            state boolean NOT NULL,
-            start_time timestamp NOT NULL,
-            end_time timestamp NOT NULL,
-            check_result char(7) NOT NULL,
-            output_log text,
-            failure_reason text
-        )
-        """)
+        cursor.execute(
+        sql.SQL (
+            "CREATE TABLE {} ("
+            "id integer NOT NULL PRIMARY KEY,"
+            "testsuite varchar(30) NOT NULL,"
+            "testcase varchar(30) NOT NULL,"
+            "desc_json json NOT NULL,"
+            "state boolean NOT NULL default FALSE,"
+            "start_time timestamp,"
+            "end_time timestamp,"
+            "check_result char(7),"
+            "output_log text,"
+            "failure_reason text)"
+        ).format(sql.Identifier(f"workdir_{current_strftime}")))
+        conn.commit()
+        cursor.close()
 
 
 
@@ -342,8 +352,8 @@ if __name__ == "__main__":
     get_analysis_mugen()
     config:dict = parse_config()
     config:dict = check_config(config)
-    input_from_excel()
     init_postgresql()
+    input_from_excel()
     make_openEuler_image()
     # 正式开始测试
     # with ThreadPoolExecutor(max_workers=cpu_count) as executor:
