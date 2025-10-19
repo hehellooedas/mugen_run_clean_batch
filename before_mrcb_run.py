@@ -23,6 +23,8 @@ def close_selinux():
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
+    print("selinux已禁用")
+
 
 
 def flash_time():
@@ -135,7 +137,7 @@ def init_postgresql():
 
     # 导入pystemd包
     try:
-        from pystemd.systemd1 import Unit
+        from pystemd.systemd1 import Unit,Manager
     except ImportError:
         print(f"mrcb准备:Python无法操作systemd.")
         sys.exit(1)
@@ -154,7 +156,18 @@ def init_postgresql():
                 print(f"mrcb准备:启动postgresql服务失败.")
                 sys.exit(1)
 
+    # 关闭防火墙
     time.sleep(3)
+    firewalld = Unit(b'firewalld.service',_autoload=True)
+    firewalld_state = firewalld.Unit.ActiveState.decode('utf-8')
+    if firewalld_state == 'active':
+        firewalld.Unit.Stop(b'replace')
+        with Manager() as manager:
+            manager.load()
+            manager.Manager.DisableUnitFiles([b'firewalld.service'],False)
+            print("防火墙firewalld已关闭")
+
+
     # 操作并初始化pgsql表和库
     postgresql = Unit('postgresql.service',_autoload=True)
     service_load_and_start(postgresql)

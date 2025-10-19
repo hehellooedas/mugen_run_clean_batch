@@ -23,7 +23,7 @@ import os,sys,signal
 import requests
 import humanfriendly
 from collections import namedtuple
-from pathlib import Path
+from pathlib import Path,PurePosixPath
 from io import BytesIO
 from openpyxl import load_workbook
 import zstandard as zstd
@@ -84,6 +84,7 @@ mrcb_work_dir = mrcb_dir / f"workdir_{current_strftime}" # 本次运行mrcb创�
 mrcb_firmware_dir = mrcb_work_dir / 'firmware'   # 存放固件
 mrcb_mugen_dir = mrcb_work_dir / 'mugen'         # 存放mugen项目
 mrcb_runtime_dir = mrcb_work_dir / 'runtime'
+mrcb_runtime_default_dir = mrcb_runtime_dir / 'default'
 
 single_machine_tests = []
 multi_machine_tests = []
@@ -154,7 +155,7 @@ def check_url(url: str) -> bool:
 
 
 
-def check_config(config:dict):
+def check_config(config:dict)->dict:
     """
     检查用户输入的Toml内的值是否合法
     根据配置文件的值制作参数列表
@@ -168,7 +169,7 @@ def check_config(config:dict):
         sys.exit(1)
     result = {}
 
-    if platform == "UEFI":
+    if arch == "RISC-V" and platform == "UEFI":
         drive_url:str = config.get('drive','')
         if drive_url == '' or check_url(drive_url) is False:
             console.print(f'您输入的drive_url字段url无法访问,请检查')
@@ -180,7 +181,7 @@ def check_config(config:dict):
                 drive_url
             ],
             dest = str(mrcb_firmware_dir / drive_url.split('/')[-1]),
-            threads = cpu_count,
+            threads = min(cpu_count,16),
             timeout=10,
             request_args = headers
         )
@@ -191,6 +192,7 @@ def check_config(config:dict):
             console.print(f"您输入的VIRT_CODE字段url无法访问,请检查")
             #sys.exit(1)
         result['VIRT_CODE'] = VIRT_CODE
+        result['VIRT_CODE_FILE'] = mrcb_firmware_dir / PurePosixPath(VIRT_CODE).name
 
 
         VIRT_VARS = config.get('VIRT_VARS','')
@@ -198,6 +200,8 @@ def check_config(config:dict):
             console.print(f"您输入的VIRT_VARS字段url无法访问,请检查")
             #sys.exit(1)
         result['VIRT_VARS'] = VIRT_VARS
+        result['VIRT_VARS_FILE'] = mrcb_firmware_dir / PurePosixPath(VIRT_VARS).name
+
     elif platform == "uboot":
         pass
     elif platform == "penglai":
@@ -206,49 +210,9 @@ def check_config(config:dict):
     if input_excel == '':
         console.print(f"input_excel字段不可以为空")
         sys.exit(1)
-    wb = load_workbook(input_excel)
-    ws = wb.active
-    from_to = config.get('from_to',[])
-    if from_to == []:  # 由mrcb自动判断
-        pass
 
-    all_mugen_tests = []
-    # 获取所有需要测试的mugen测试用例名
-    for i in range(from_to[0],from_to[1]+1):
-        each_mugen_test = mugen_test(
-            TestSuite = ws.cell(row=i,column=1).value,
-            TestCase = ws.cell(row=i,column=2).value,
-        )
-        all_mugen_tests.append(each_mugen_test)
-
-    conn = pgsql_pool.getconn()
-    cursor = conn.cursor()
-    # 校验测试用例的合法性
-    for TestSuite,TestCase in all_mugen_tests:
-        # suite2case
-        if TestSuite + '.json' in mugen_suite_jsons:
-            with open(mrcb_mugen_dir / 'suite2cases' / f'{TestSuite}.json','r',encoding='utf-8') as f:
-                TestSuite_json = json.load(f)
-                print(TestSuite_json)
-                if TestCase not in (testcase for each in TestSuite_json['cases'] for name,testcase in each.items()):
-                    print(f"{TestSuite}中不含有{TestCase},请仔细检查excel文件!")
-                    sys.exit(1)
-        # baseline test
-        elif TestSuite + '.json' in mugen_cli_test_jsons:
-            pass
-        elif TestSuite + '.json' in mugen_doc_test_jsons:
-            pass
-        elif TestSuite + '.json' in mugen_fs_test_jsons:
-            pass
-        elif TestSuite + '.json' in mugen_network_test_jsons:
-            pass
-        elif TestSuite + '.json' in mugen_service_jsons:
-            pass
-        elif TestSuite + '.json' in mugen_system_integration_jsons:
-            pass
-    cursor.close()
-    pgsql_pool.putconn(conn)
-
+    result['input_excel'] = input_excel
+    return result
 
     # # 检测完成后建立数据表,将运行信息登记
     # with pgsql_pool.getconn() as conn:
@@ -298,11 +262,45 @@ def input_from_excel():
     input_excel_file = config.get('input_excel')
     wb = load_workbook(input_excel_file,read_only=True)
     ws = wb.active
+    from_to = config.get('from_to',[])
 
-    from_to = config.get('from_to')
     all_mugen_tests = []
+    # 获取所有需要测试的mugen测试用例名
     for i in range(from_to[0],from_to[1]+1):
-        all_mugen_tests.append(mugen_test(TestSuite=ws[f'a{i}'].value,TestCase=ws[f'b{i}'].value))
+        each_mugen_test = mugen_test(
+            TestSuite = ws.cell(row=i,column=1).value,
+            TestCase = ws.cell(row=i,column=2).value,
+        )
+        all_mugen_tests.append(each_mugen_test)
+
+    conn = pgsql_pool.getconn()
+    cursor = conn.cursor()
+    # 校验测试用例的合法性
+    for TestSuite,TestCase in all_mugen_tests:
+        # suite2case
+        if TestSuite + '.json' in mugen_suite_jsons:
+            with open(mrcb_mugen_dir / 'suite2cases' / f'{TestSuite}.json','r',encoding='utf-8') as f:
+                TestSuite_json = json.load(f)
+                print(TestSuite_json)
+                if TestCase not in (testcase for each in TestSuite_json['cases'] for name,testcase in each.items()):
+                    print(f"{TestSuite}中不含有{TestCase},请仔细检查excel文件!")
+                    sys.exit(1)
+        # baseline test
+        elif TestSuite + '.json' in mugen_cli_test_jsons:
+            pass
+        elif TestSuite + '.json' in mugen_doc_test_jsons:
+            pass
+        elif TestSuite + '.json' in mugen_fs_test_jsons:
+            pass
+        elif TestSuite + '.json' in mugen_network_test_jsons:
+            pass
+        elif TestSuite + '.json' in mugen_service_jsons:
+            pass
+        elif TestSuite + '.json' in mugen_system_integration_jsons:
+            pass
+    cursor.close()
+    pgsql_pool.putconn(conn)
+
 
 
 def init_postgresql():
@@ -329,7 +327,8 @@ def make_openEuler_image():
     """
         用来制作openEuler的启动镜像模型
     """
-    pass
+    mrcb_runtime_default_dir.mkdir()
+
 
 
 if __name__ == "__main__":
@@ -338,8 +337,8 @@ if __name__ == "__main__":
     # 先初始化mugen
     get_analysis_mugen()
     config:dict = parse_config()
+    config:dict = check_config(config)
     input_from_excel()
-    check_config(config)
     init_postgresql()
     make_openEuler_image()
     # 正式开始测试
