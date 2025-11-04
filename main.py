@@ -206,6 +206,14 @@ def check_config(config:dict)->dict:
             #sys.exit(1)
         result['VIRT_CODE'] = VIRT_CODE
         result['VIRT_CODE_FILE'] = mrcb_firmware_dir / PurePosixPath(VIRT_CODE).name
+        download_VIRT_CODE_file:SmartDL = SmartDL(
+            urls = [VIRT_CODE],
+            dest = str(mrcb_firmware_dir / result['VIRT_CODE']),
+            threads = min(cpu_count,32),
+            timeout=10,
+            progress_bar=True,
+        )
+        download_VIRT_CODE_file.start(blocking=True)
 
 
         VIRT_VARS = config.get('VIRT_VARS','')
@@ -214,6 +222,15 @@ def check_config(config:dict)->dict:
             #sys.exit(1)
         result['VIRT_VARS'] = VIRT_VARS
         result['VIRT_VARS_FILE'] = mrcb_firmware_dir / PurePosixPath(VIRT_VARS).name
+        download_VIRT_VARS_file:SmartDL = SmartDL(
+            urls = [VIRT_VARS],
+            dest = str(mrcb_firmware_dir / result['VIRT_CODE']),
+            threads = min(cpu_count,32),
+            timeout=10,
+            progress_bar=True,
+        )
+        download_VIRT_VARS_file.start(blocking=True)
+
 
     elif platform == "uboot":
         pass
@@ -446,6 +463,7 @@ def make_template_image():
                    'VIRT_CODE_FILE':config['VIRT_CODE_FILE'],
                    'VIRT_VARS_FILE':config['VIRT_VARS_FILE'],
                    'DRIVE_FILE':drive_name,
+                   'compress_format':config['compress_format'],
                 })
         elif platform == 'UBOOT':
             arch_platforms.RISC_V_UBOOT.make_openEuler_image()

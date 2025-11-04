@@ -1,6 +1,9 @@
 from pathlib import Path,PurePosixPath
 from psycopg2.pool import ThreadedConnectionPool
 import subprocess
+import psutil
+import gzip,bz2,lzma,zstandard
+
 
 
 class RISC_V_UEFI:
@@ -29,6 +32,21 @@ class RISC_V_UEFI:
         VIRT_VARS_FILE:Path = kwargs.get('VIRT_VARS_FILE')
         VIRT_CODE_FILE:Path = kwargs.get('VIRT_CODE_FILE')
         DRIVE_NAME:Path = kwargs.get('DRIVE_NAME')
+        compress_format:str = kwargs.get('compress_format')
+        if compress_format == 'gzip':
+            with gzip.open(default_workdir / DRIVE_NAME,'rb') as fin,open(default_workdir / DRIVE_NAME.with_suffix(''),'wb') as fout:
+                fout.writelines(fin)
+        elif compress_format == 'bzip2':
+            with bz2.open(default_workdir / DRIVE_NAME,'rb') as fin,open(default_workdir / DRIVE_NAME.with_suffix(''),'wb') as fout:
+                fout.writelines(fin)
+        elif compress_format == 'xz':
+            with lzma.open(default_workdir / DRIVE_NAME,'rb') as fio,open(default_workdir / DRIVE_NAME.with_suffix(''),'wb') as fout:
+                fout.writelines(fio)
+        elif compress_format == 'zstd':
+            with zstandard.open(default_workdir / DRIVE_NAME,'rb') as fio,open(default_workdir / DRIVE_NAME.with_suffix(''),'wb') as fout:
+                fout.writelines(fio)
+        else:
+            print("未检测到压缩格式，按照无压缩处理...")
 
         # 转变为绝对路径
         VIRT_VARS_FILE.resolve()
@@ -70,7 +88,7 @@ class RISC_V_UEFI:
                   -numa node,memdev=ram2 \
                   -blockdev node-name=pflash0,driver=file,read-only=on,filename="{VIRT_CODE_FILE}" \
                   -blockdev node-name=pflash1,driver=file,filename="{VIRT_VARS_FILE}" \
-                  -drive file="{default_workdir / DRIVE_NAME}",format=qcow2,id=hd0,if=none \
+                  -drive file="{default_workdir / DRIVE_NAME.with_suffix('')}",format=qcow2,id=hd0,if=none \
                   -object rng-random,filename=/dev/urandom,id=rng0 \
                   -device virtio-vga \
                   -device virtio-rng-device,rng=rng0 \
