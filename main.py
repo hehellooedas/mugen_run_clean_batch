@@ -208,7 +208,7 @@ def check_config(config:dict)->dict:
         result['VIRT_CODE_FILE'] = mrcb_firmware_dir / PurePosixPath(VIRT_CODE).name
         download_VIRT_CODE_file:SmartDL = SmartDL(
             urls = [VIRT_CODE],
-            dest = str(mrcb_firmware_dir / result['VIRT_CODE']),
+            dest = str(result['VIRT_CODE_FILE']),
             threads = min(cpu_count,32),
             timeout=10,
             progress_bar=True,
@@ -224,7 +224,7 @@ def check_config(config:dict)->dict:
         result['VIRT_VARS_FILE'] = mrcb_firmware_dir / PurePosixPath(VIRT_VARS).name
         download_VIRT_VARS_file:SmartDL = SmartDL(
             urls = [VIRT_VARS],
-            dest = str(mrcb_firmware_dir / result['VIRT_CODE']),
+            dest = str(result['VIRT_VARS_FILE']),
             threads = min(cpu_count,32),
             timeout=10,
             progress_bar=True,
@@ -462,7 +462,7 @@ def make_template_image():
                 **{'default_workdir':mrcb_runtime_default_dir,
                    'VIRT_CODE_FILE':config['VIRT_CODE_FILE'],
                    'VIRT_VARS_FILE':config['VIRT_VARS_FILE'],
-                   'DRIVE_FILE':drive_name,
+                   'DRIVE_FILE':drive_name,'DRIVE_TYPE':config['drive_type'],
                    'compress_format':config['compress_format'],
                 })
         elif platform == 'UBOOT':

@@ -1,7 +1,9 @@
 from pathlib import Path,PurePosixPath
+from tabnanny import check
+
 from psycopg2.pool import ThreadedConnectionPool
 import subprocess
-import psutil
+import psutil,shutil
 import gzip,bz2,lzma,zstandard
 
 
@@ -31,20 +33,25 @@ class RISC_V_UEFI:
         default_workdir:Path = kwargs.get('default_workdir')
         VIRT_VARS_FILE:Path = kwargs.get('VIRT_VARS_FILE')
         VIRT_CODE_FILE:Path = kwargs.get('VIRT_CODE_FILE')
-        DRIVE_NAME:Path = kwargs.get('DRIVE_NAME')
+        DRIVE_NAME:Path = Path(kwargs.get('DRIVE_FILE'))
+        DRIVE_TYPE:Path = kwargs.get('DRIVE_TYPE')
         compress_format:str = kwargs.get('compress_format')
+        print(compress_format)
+        print(DRIVE_NAME)
+        print(default_workdir)
+
         if compress_format == 'gzip':
-            with gzip.open(default_workdir / DRIVE_NAME,'rb') as fin,open(default_workdir / DRIVE_NAME.with_suffix(''),'wb') as fout:
-                fout.writelines(fin)
+            with gzip.open(default_workdir / DRIVE_NAME,'rb') as fin,open(default_workdir / Path(DRIVE_NAME).with_suffix(''),'wb') as fout:
+                shutil.copyfileobj(fin, fout,length=1024*1024*32)
         elif compress_format == 'bzip2':
-            with bz2.open(default_workdir / DRIVE_NAME,'rb') as fin,open(default_workdir / DRIVE_NAME.with_suffix(''),'wb') as fout:
-                fout.writelines(fin)
+            with bz2.open(default_workdir / DRIVE_NAME,'rb') as fin,open(default_workdir / Path(DRIVE_NAME).with_suffix(''),'wb') as fout:
+                shutil.copyfileobj(fin, fout,length=1024*1024*32)
         elif compress_format == 'xz':
-            with lzma.open(default_workdir / DRIVE_NAME,'rb') as fio,open(default_workdir / DRIVE_NAME.with_suffix(''),'wb') as fout:
-                fout.writelines(fio)
+            with lzma.open(default_workdir / DRIVE_NAME,'rb') as fin,open(default_workdir / Path(DRIVE_NAME).with_suffix(''),'wb') as fout:
+                shutil.copyfileobj(fin, fout,length=1024*1024*32)
         elif compress_format == 'zstd':
-            with zstandard.open(default_workdir / DRIVE_NAME,'rb') as fio,open(default_workdir / DRIVE_NAME.with_suffix(''),'wb') as fout:
-                fout.writelines(fio)
+            with zstandard.open(default_workdir / DRIVE_NAME,'rb') as fin,open(default_workdir / Path(DRIVE_NAME).with_suffix(''),'wb') as fout:
+                shutil.copyfileobj(fin, fout,length=1024*1024*32)
         else:
             print("未检测到压缩格式，按照无压缩处理...")
 
@@ -53,8 +60,8 @@ class RISC_V_UEFI:
         VIRT_CODE_FILE.resolve()
 
         # 对两个固件进行软链接
-        (default_workdir / PurePosixPath(VIRT_VARS_FILE)).symlink_to(VIRT_VARS_FILE)
-        (default_workdir / PurePosixPath(VIRT_CODE_FILE)).symlink_to(VIRT_CODE_FILE)
+        Path(default_workdir / PurePosixPath(VIRT_VARS_FILE).name).symlink_to(VIRT_VARS_FILE)
+        Path(default_workdir / PurePosixPath(VIRT_CODE_FILE).name).symlink_to(VIRT_CODE_FILE)
 
         try:
             """
@@ -78,7 +85,7 @@ class RISC_V_UEFI:
               -device qemu-xhci -usb -device usb-kbd -device usb-tablet
             """
 
-            subprocess.run(f"""
+            QEMU = subprocess.Popen(args=f"""
                 qemu-system-riscv64 \
                   -nographic -machine virt,pflash0=pflash0,pflash1=pflash1,acpi=off \
                   -smp 8 -m 4G \
@@ -88,7 +95,7 @@ class RISC_V_UEFI:
                   -numa node,memdev=ram2 \
                   -blockdev node-name=pflash0,driver=file,read-only=on,filename="{VIRT_CODE_FILE}" \
                   -blockdev node-name=pflash1,driver=file,filename="{VIRT_VARS_FILE}" \
-                  -drive file="{default_workdir / DRIVE_NAME.with_suffix('')}",format=qcow2,id=hd0,if=none \
+                  -drive file="{default_workdir / DRIVE_NAME.with_suffix('')}",format={DRIVE_TYPE},id=hd0,if=none \
                   -object rng-random,filename=/dev/urandom,id=rng0 \
                   -device virtio-vga \
                   -device virtio-rng-device,rng=rng0 \
@@ -96,9 +103,15 @@ class RISC_V_UEFI:
                   -device virtio-net-device,netdev=usernet \
                   -netdev user,id=usernet,hostfwd=tcp::"20000"-:22 \
                   -device qemu-xhci -usb -device usb-kbd -device usb-tablet
-            """,timeout=100,
+            """,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
+                shell=True,start_new_session=True
             )
+            print(f"QEMU's pid = {QEMU.pid}")
         except subprocess.CalledProcessError as e:
             print(e)
+        finally:
+            print('Hello finally!')
+            QEMU.kill()
+        print('Hello World!')
