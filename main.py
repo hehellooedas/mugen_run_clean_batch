@@ -2,6 +2,7 @@
 # encoding: utf-8
 
 import subprocess
+import arch_platforms
 
 import psycopg2
 from rich.console import Console
@@ -109,7 +110,7 @@ headers = {
 
 
 
-
+# 只提取Toml参数不作处理
 def parse_config() -> dict:
     """
     1. 命令行交互
@@ -146,17 +147,15 @@ def parse_config() -> dict:
 
 
 
+# 校验输入的url是否是可访问的
 def check_url(url: str) -> bool:
     try:
-        response = requests.head(url=url,headers=headers,timeout=5)
-        if response.status_code != requests.codes.ok:
-            return False
-    except (requests.exceptions.ConnectionError, requests.exceptions.HTTPError) as e:
+        return requests.head(url=url,allow_redirects=True,timeout=10).ok
+    except requests.RequestException:
         return False
-    return True
 
 
-
+# 对选项参数作处理
 def check_config(config:dict)->dict:
     """
     检查用户输入的Toml内的值是否合法
@@ -171,20 +170,30 @@ def check_config(config:dict)->dict:
         sys.exit(1)
     result = {}
 
+    drive_type = config.get('drive_type',None)
+    if drive_type is None:
+        print("drive_type字段为空,请检查输入的Toml")
+    result['drive_type'] = drive_type
+
+    compress_format = config.get('compress_format',None)
+    if compress_format is None:
+        print("compress_format字段为空,则输入的url为不压缩的镜像!!!")
+    result['compress_format'] = compress_format
+
     mrcb_runtime_dir.mkdir(exist_ok=True);mrcb_firmware_dir.mkdir(exist_ok=True)
     if arch == "RISC-V" and platform == "UEFI":
         drive_url:str = config.get('drive_url','')
         if drive_url == '' or check_url(drive_url) is False:
             console.print(f'您输入的drive_url字段url无法访问,请检查')
             #sys.exit(1)
-        result['drive_url'] = drive_url
+        result['drive_name'] = PurePosixPath(drive_url).name
 
 
         download_drive_file:SmartDL = SmartDL(
             urls = [
                 drive_url
             ],
-            dest = str(mrcb_firmware_dir / PurePosixPath(drive_url).name),
+            dest = str(mrcb_runtime_default_dir / result['drive_name']),
             threads = min(cpu_count,32),
             timeout=10,
             progress_bar=True,
@@ -416,8 +425,8 @@ def init_postgresql():
             "testcase varchar(100) NOT NULL,"
             "desc_json json NOT NULL,"
             "state boolean NOT NULL default FALSE,"
-            "start_time timestamp,"
-            "end_time timestamp,"
+            "start_time timestamptz,"
+            "end_time timestamptz,"
             "check_result char(7),"
             "output_log text,"
             "failure_reason text)"
@@ -426,12 +435,20 @@ def init_postgresql():
         cursor.close()
 
 
-
-def make_openEuler_image():
-    """
-        用来制作openEuler的启动镜像模型
-    """
-    mrcb_runtime_default_dir.mkdir(parents=True)
+# 制作镜像模板
+def make_template_image():
+    drive_name = config.get('drive_name')
+    # 依据引导选项和指令集做判断
+    if arch == 'RISC-V':
+        if platform == 'UEFI':
+            arch_platforms.RISC_V_UEFI.make_openEuler_image(
+                **{'default_workdir':mrcb_runtime_default_dir,
+                   'VIRT_CODE_FILE':config['VIRT_CODE_FILE'],
+                   'VIRT_VARS_FILE':config['VIRT_VARS_FILE'],
+                   'DRIVE_FILE':drive_name,
+                })
+        elif platform == 'UBOOT':
+            arch_platforms.RISC_V_UBOOT.make_openEuler_image()
 
 
 
@@ -444,7 +461,12 @@ if __name__ == "__main__":
     config:dict = check_config(config)
     init_postgresql()
     input_from_excel()
-    make_openEuler_image()
+    make_template_image()
+
+
+
+
+
     # 正式开始测试
     # with ThreadPoolExecutor(max_workers=cpu_count) as executor:
     #     executor.submit(put_mugen_test_to_queue)

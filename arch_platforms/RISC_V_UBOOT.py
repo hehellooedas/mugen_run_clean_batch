@@ -9,6 +9,6 @@ class RISC_V_UBOOT:
         self.case = ''              # 当前测试类待测试的mugen测试名称
 
 
-    @staticmethod
-    def pretest():
+    @classmethod
+    def make_openEuler_image(cls):
         pass
