@@ -130,13 +130,14 @@ class RISC_V_UEFI:
             print(e)
             sys.exit(1)
 
-        netcat = subprocess.run(
+        # QEMU启动RISC-V镜像需要较长一段时间
+        time.sleep(60)
+        subprocess.run(
             args = "nc -vz 127.0.0.1 20000",
             shell=True,
             stdout=subprocess.PIPE,
         )
-
-        print(f"探测端口是否可达:{netcat.stdout}")
+        time.sleep(60)
         client:paramiko.SSHClient = get_client('127.0.0.1','openEuler12#$',20000)
 
         # 安装必备的rpm包并拉取mugen项目

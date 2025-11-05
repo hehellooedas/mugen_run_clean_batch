@@ -1,8 +1,8 @@
 arch='RISC-V'
 platform='UBOOT'
-drive_url='https://repo.tarsier-infra.isrc.ac.cn/openEuler-RISC-V/devel/20231024/v0.5/QEMU/openEuler-23.09-V1-base-qemu-devel.qcow2.zst'
+drive_url='https://repo.tarsier-infra.isrc.ac.cn/openEuler-RISC-V/devel/20250914/v0.1/QEMU/openEuler-25.09-V1-base-qemu-devel.qcow2.zst'
 drive_type='qcow2'
 compress_format='zstd'
-uboot_bin='https://repo.tarsier-infra.isrc.ac.cn/openEuler-RISC-V/devel/20231024/v0.5/QEMU/fw_payload_oe_uboot_2304.bin'
+uboot_bin='https://repo.tarsier-infra.isrc.ac.cn/openEuler-RISC-V/devel/20250914/v0.1/QEMU/fw_payload_oe_uboot_2304.bin'
 input_excel='/root/第一轮测试组筛选.xlsx'
 from_to=[2,641]

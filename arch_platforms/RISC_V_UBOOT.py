@@ -74,7 +74,7 @@ class RISC_V_UBOOT:
                         -device virtio-rng-pci,rng=rng0 \
                         -device virtio-blk-pci,drive=hd0 \
                         -device virtio-net-pci,netdev=usernet \
-                        -netdev user,id=usernet,hostfwd=tcp:localhost:20000-:22
+                        -netdev user,id=usernet,hostfwd=tcp:127.0.0.1:20000-:22
                 """,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -84,13 +84,15 @@ class RISC_V_UBOOT:
             print(f"QEMU启动uboot镜像失败.报错信息:{e}")
             sys.exit(1)
 
-        netcat = subprocess.run(
+        # QEMU启动RISC-V镜像需要较长一段时间
+        time.sleep(60)
+
+        subprocess.run(
             args = "nc -vz 127.0.0.1 20000",
             shell=True,
             stdout=subprocess.PIPE,
         )
-        print(f"探测端口是否可达:{netcat.stdout}")
-
+        time.sleep(120)
         client: paramiko.SSHClient = get_client('127.0.0.1', 'openEuler12#$', 20000)
         # 安装必备的rpm包并拉取mugen项目
         stdin,stdout,stderr = client.exec_command(
