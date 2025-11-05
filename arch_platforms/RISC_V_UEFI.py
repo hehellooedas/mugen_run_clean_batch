@@ -129,6 +129,14 @@ class RISC_V_UEFI:
         except subprocess.CalledProcessError as e:
             print(e)
             sys.exit(1)
+
+        netcat = subprocess.run(
+            args = "nc -vz 127.0.0.1 20000",
+            shell=True,
+            stdout=subprocess.PIPE,
+        )
+
+        print(f"探测端口是否可达:{netcat.stdout}")
         client:paramiko.SSHClient = get_client('127.0.0.1','openEuler12#$',20000)
 
         # 安装必备的rpm包并拉取mugen项目

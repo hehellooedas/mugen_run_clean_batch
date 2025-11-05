@@ -190,6 +190,14 @@ psql -v ON_ERROR_STOP=1 -d postgres -c "CREATE DATABASE mugen_run_clean_batch EN
 
     subprocess.run(['runuser', '-u', 'postgres', '--', 'bash', '-lc', cmd], check=True)
 
+    socket_statistrics = subprocess.run(
+        args = "ss -lntp | grep 5432|grep -v grep",
+        shell=True,
+        stdout=subprocess.PIPE,
+    )
+
+    print(f"数据库初始化完成.端口信息:{socket_statistrics.stdout}")
+
 
 if __name__ == "__main__":
     print("开始做mrcb运行前准备工作:")
