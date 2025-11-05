@@ -84,7 +84,7 @@ class RISC_V_UBOOT:
         client: paramiko.SSHClient = get_client('127.0.0.1', 'openEuler12#$', 20000)
         # 安装必备的rpm包并拉取mugen项目
         stdin,stdout,stderr = client.exec_command(
-            'dnf install -y git top python3 && git clone https://gitee.com/openeuler/mugen.git &&'
+            'dnf install -y git htop python3 && git clone https://gitee.com/openeuler/mugen.git &&'
             'cd mugen/ && chmod +x dep_install.sh mugen.sh && bash dep_install.sh'
         )
         if stdout.channel.recv_exit_status() != 0:
