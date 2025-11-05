@@ -110,9 +110,9 @@ class RISC_V_UEFI:
                   -numa node,memdev=ram1 \
                   -object memory-backend-ram,size=2G,id=ram2 \
                   -numa node,memdev=ram2 \
-                  -blockdev node-name=pflash0,driver=file,read-only=on,filename="{VIRT_CODE_FILE}" \
-                  -blockdev node-name=pflash1,driver=file,filename="{VIRT_VARS_FILE}" \
-                  -drive file="{default_workdir / DRIVE_NAME.with_suffix('')}",format={DRIVE_TYPE},id=hd0,if=none \
+                  -blockdev node-name=pflash0,driver=file,read-only=on,filename={VIRT_CODE_FILE} \
+                  -blockdev node-name=pflash1,driver=file,filename={VIRT_VARS_FILE} \
+                  -drive file={default_workdir / DRIVE_NAME.with_suffix('')},format={DRIVE_TYPE},id=hd0,if=none \
                   -object rng-random,filename=/dev/urandom,id=rng0 \
                   -device virtio-vga \
                   -device virtio-rng-device,rng=rng0 \

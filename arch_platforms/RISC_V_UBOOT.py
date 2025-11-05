@@ -1,4 +1,27 @@
+import sys
+from pathlib import Path,PurePosixPath
+from psycopg2.pool import ThreadedConnectionPool
+import subprocess
+import shutil,time,os
+import gzip,bz2,lzma,zstandard
+import paramiko
 
+
+def get_client(ip, password, port=22):
+    client = paramiko.SSHClient()
+    client.load_system_host_keys()
+    client.set_missing_host_key_policy(paramiko.AutoAddPolicy)
+    try:
+        client.connect(hostname=ip, port=port, username="root", password=password, timeout=100)
+    except (
+            paramiko.ssh_exception.NoValidConnectionsError,
+            paramiko.ssh_exception.AuthenticationException,
+            paramiko.ssh_exception.SSHException,
+            TypeError,
+            AttributeError,
+    ) as e:
+        print(f"无法连接到远程机器:{ip}.\n原因： {e}")
+    return client
 
 
 class RISC_V_UBOOT:
@@ -9,6 +32,63 @@ class RISC_V_UBOOT:
         self.case = ''              # 当前测试类待测试的mugen测试名称
 
 
-    @classmethod
-    def make_openEuler_image(cls):
-        pass
+    @staticmethod
+    def make_openEuler_image(**kwargs):
+        default_workdir: Path = kwargs.get('default_workdir')
+        UBOOT_BIN_FILE: Path = kwargs.get('UBOOT_BIN_FILE')
+        DRIVE_NAME: Path = Path(kwargs.get('DRIVE_FILE'))
+        DRIVE_TYPE: Path = kwargs.get('DRIVE_TYPE')
+        compress_format: str = kwargs.get('compress_format')
+
+        UBOOT_BIN_FILE = UBOOT_BIN_FILE.expanduser().resolve(strict=True)
+        if compress_format == 'gzip':
+            with gzip.open(default_workdir / DRIVE_NAME,'rb') as fin,open(default_workdir / Path(DRIVE_NAME).with_suffix(''),'wb') as fout:
+                shutil.copyfileobj(fin, fout,length=1024*1024*32)
+        elif compress_format == 'bzip2':
+            with bz2.open(default_workdir / DRIVE_NAME,'rb') as fin,open(default_workdir / Path(DRIVE_NAME).with_suffix(''),'wb') as fout:
+                shutil.copyfileobj(fin, fout,length=1024*1024*32)
+        elif compress_format == 'xz':
+            with lzma.open(default_workdir / DRIVE_NAME,'rb') as fin,open(default_workdir / Path(DRIVE_NAME).with_suffix(''),'wb') as fout:
+                shutil.copyfileobj(fin, fout,length=1024*1024*32)
+        elif compress_format == 'zstd':
+            with zstandard.open(default_workdir / DRIVE_NAME,'rb') as fin,open(default_workdir / Path(DRIVE_NAME).with_suffix(''),'wb') as fout:
+                shutil.copyfileobj(fin, fout,length=1024*1024*32)
+        else:
+            print("未检测到压缩格式，按照无压缩处理...")
+
+
+        # 启动镜像
+        try:
+            QEMU = subprocess.Popen(
+                args = f"""
+                    qemu-system-riscv64 \
+                        -nographic -machine virt \
+                        -smp 8 -m 4G \
+                        -bios {UBOOT_BIN_FILE} \
+                        -drive if=none,file={default_workdir / DRIVE_NAME.with_suffix('')},format={DRIVE_TYPE},id=hd0 \
+                        -object rng-random,filename=/dev/urandom,id=rng0 \
+                        -device virtio-gpu \
+                        -device virtio-rng-pci,rng=rng0 \
+                        -device virtio-blk-pci,drive=hd0 \
+                        -device virtio-net-pci,netdev=usernet \
+                        -netdev user,id=usernet,hostfwd=tcp:localhost:20000-:22
+                """,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                shell=True, start_new_session=True
+            )
+        except subprocess.CalledProcessError as e:
+            print(f"QEMU启动uboot镜像失败.报错信息:{e}")
+            sys.exit(1)
+
+        client: paramiko.SSHClient = get_client('127.0.0.1', 'openEuler12#$', 20000)
+        # 安装必备的rpm包并拉取mugen项目
+        stdin,stdout,stderr = client.exec_command(
+            'dnf install -y git top python3 && git clone https://gitee.com/openeuler/mugen.git &&'
+            'cd mugen/ && chmod +x dep_install.sh mugen.sh && bash dep_install.sh'
+        )
+        if stdout.channel.recv_exit_status() != 0:
+            print(f"虚拟机中拉取mugen项目失败！报错信息:{stderr.read().decode('utf-8')}")
+        print(stdout.read().decode('utf-8'))
+        time.sleep(5)
+        QEMU.kill()

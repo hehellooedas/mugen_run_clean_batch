@@ -77,7 +77,7 @@ def install_needed_rpms():
             "dnf install -y gcc python3-devel "
             "python3-pip python3-Cython python3-psycopg2 "
             "python3-paramiko systemd-devel libffi-devel "
-            "pkgconf libxml2 libxslt libxslt-devel "
+            "pkgconf libxml2 libxslt libxslt-devel top"
             "libxml2-devel tmux postgresql qemu qemu-system-*",
             shell=True,
             check=True,

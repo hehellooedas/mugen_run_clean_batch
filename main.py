@@ -233,7 +233,19 @@ def check_config(config:dict)->dict:
 
 
     elif platform == "uboot":
-        pass
+        uboot_bin:str = config.get('uboot_bin')
+        if uboot_bin is None:
+            print(f'您输入的uboot_bin字段为空,请检查Toml文件')
+            sys.exit(1)
+        result['UBOOT_BIN_FILE'] = mrcb_firmware_dir / PurePosixPath(uboot_bin).name
+        download_uboot_bin_file:SmartDL = SmartDL(
+            urls = [uboot_bin],
+            dest = str(result['UBOOT_BIN_FILE']),
+            threads = min(cpu_count,32),
+            timeout=10,
+            progress_bar=True,
+        )
+        download_uboot_bin_file.start(blocking=True)
     elif platform == "penglai":
         pass
     input_excel = config.get('input_excel','')
@@ -464,9 +476,18 @@ def make_template_image():
                    'VIRT_VARS_FILE':config['VIRT_VARS_FILE'],
                    'DRIVE_FILE':drive_name,'DRIVE_TYPE':config['drive_type'],
                    'compress_format':config['compress_format'],
+                   'DEVICE_TYPE':config['device_type'],
                 })
         elif platform == 'UBOOT':
-            arch_platforms.RISC_V_UBOOT.make_openEuler_image()
+            arch_platforms.RISC_V_UBOOT.make_openEuler_image(
+                **{
+                    'default_workdir':mrcb_runtime_default_dir,
+                    'UBOOT_BIN_FILE':config['UBOOT_BIN_FILE'],
+                    'DRIVE_FILE': drive_name, 'DRIVE_TYPE': config['drive_type'],
+                    'compress_format': config['compress_format'],
+                    'DEVICE_TYPE': config['device_type'],
+                }
+            )
 
 
 
