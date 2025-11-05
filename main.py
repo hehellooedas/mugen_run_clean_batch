@@ -181,73 +181,75 @@ def check_config(config:dict)->dict:
     result['compress_format'] = compress_format
 
     mrcb_runtime_dir.mkdir(exist_ok=True);mrcb_firmware_dir.mkdir(exist_ok=True)
-    if arch == "RISC-V" and platform == "UEFI":
-        drive_url:str = config.get('drive_url','')
-        if drive_url == '' or check_url(drive_url) is False:
-            console.print(f'您输入的drive_url字段url无法访问,请检查')
-            #sys.exit(1)
-        result['drive_name'] = PurePosixPath(drive_url).name
+
+    if arch == 'RISC-V':
+        if platform == "UEFI":
+            drive_url:str = config.get('drive_url','')
+            if drive_url == '' or check_url(drive_url) is False:
+                console.print(f'您输入的drive_url字段url无法访问,请检查')
+                #sys.exit(1)
+            result['drive_name'] = PurePosixPath(drive_url).name
 
 
-        download_drive_file:SmartDL = SmartDL(
-            urls = [
-                drive_url
-            ],
-            dest = str(mrcb_runtime_default_dir / result['drive_name']),
-            threads = min(cpu_count,32),
-            timeout=10,
-            progress_bar=True,
-        )
-        download_drive_file.start(blocking=True)
-        
-        VIRT_CODE = config.get('VIRT_CODE','')
-        if VIRT_CODE == '' or check_url(VIRT_CODE) is False:
-            console.print(f"您输入的VIRT_CODE字段url无法访问,请检查")
-            #sys.exit(1)
-        result['VIRT_CODE'] = VIRT_CODE
-        result['VIRT_CODE_FILE'] = mrcb_firmware_dir / PurePosixPath(VIRT_CODE).name
-        download_VIRT_CODE_file:SmartDL = SmartDL(
-            urls = [VIRT_CODE],
-            dest = str(result['VIRT_CODE_FILE']),
-            threads = min(cpu_count,32),
-            timeout=10,
-            progress_bar=True,
-        )
-        download_VIRT_CODE_file.start(blocking=True)
+            download_drive_file:SmartDL = SmartDL(
+                urls = [
+                    drive_url
+                ],
+                dest = str(mrcb_runtime_default_dir / result['drive_name']),
+                threads = min(cpu_count,32),
+                timeout=10,
+                progress_bar=True,
+            )
+            download_drive_file.start(blocking=True)
+
+            VIRT_CODE = config.get('VIRT_CODE','')
+            if VIRT_CODE == '' or check_url(VIRT_CODE) is False:
+                console.print(f"您输入的VIRT_CODE字段url无法访问,请检查")
+                #sys.exit(1)
+            result['VIRT_CODE'] = VIRT_CODE
+            result['VIRT_CODE_FILE'] = mrcb_firmware_dir / PurePosixPath(VIRT_CODE).name
+            download_VIRT_CODE_file:SmartDL = SmartDL(
+                urls = [VIRT_CODE],
+                dest = str(result['VIRT_CODE_FILE']),
+                threads = min(cpu_count,32),
+                timeout=10,
+                progress_bar=True,
+            )
+            download_VIRT_CODE_file.start(blocking=True)
 
 
-        VIRT_VARS = config.get('VIRT_VARS','')
-        if VIRT_VARS == '' or check_url(VIRT_VARS) is False:
-            console.print(f"您输入的VIRT_VARS字段url无法访问,请检查")
-            #sys.exit(1)
-        result['VIRT_VARS'] = VIRT_VARS
-        result['VIRT_VARS_FILE'] = mrcb_firmware_dir / PurePosixPath(VIRT_VARS).name
-        download_VIRT_VARS_file:SmartDL = SmartDL(
-            urls = [VIRT_VARS],
-            dest = str(result['VIRT_VARS_FILE']),
-            threads = min(cpu_count,32),
-            timeout=10,
-            progress_bar=True,
-        )
-        download_VIRT_VARS_file.start(blocking=True)
+            VIRT_VARS = config.get('VIRT_VARS','')
+            if VIRT_VARS == '' or check_url(VIRT_VARS) is False:
+                console.print(f"您输入的VIRT_VARS字段url无法访问,请检查")
+                #sys.exit(1)
+            result['VIRT_VARS'] = VIRT_VARS
+            result['VIRT_VARS_FILE'] = mrcb_firmware_dir / PurePosixPath(VIRT_VARS).name
+            download_VIRT_VARS_file:SmartDL = SmartDL(
+                urls = [VIRT_VARS],
+                dest = str(result['VIRT_VARS_FILE']),
+                threads = min(cpu_count,32),
+                timeout=10,
+                progress_bar=True,
+            )
+            download_VIRT_VARS_file.start(blocking=True)
 
 
-    elif platform == "uboot":
-        uboot_bin:str = config.get('uboot_bin')
-        if uboot_bin is None:
-            print(f'您输入的uboot_bin字段为空,请检查Toml文件')
-            sys.exit(1)
-        result['UBOOT_BIN_FILE'] = mrcb_firmware_dir / PurePosixPath(uboot_bin).name
-        download_uboot_bin_file:SmartDL = SmartDL(
-            urls = [uboot_bin],
-            dest = str(result['UBOOT_BIN_FILE']),
-            threads = min(cpu_count,32),
-            timeout=10,
-            progress_bar=True,
-        )
-        download_uboot_bin_file.start(blocking=True)
-    elif platform == "penglai":
-        pass
+        elif platform == "uboot":
+            uboot_bin:str = config.get('uboot_bin')
+            if uboot_bin is None:
+                print(f'您输入的uboot_bin字段为空,请检查Toml文件')
+                sys.exit(1)
+            result['UBOOT_BIN_FILE'] = mrcb_firmware_dir / PurePosixPath(uboot_bin).name
+            download_uboot_bin_file:SmartDL = SmartDL(
+                urls = [uboot_bin],
+                dest = str(result['UBOOT_BIN_FILE']),
+                threads = min(cpu_count,32),
+                timeout=10,
+                progress_bar=True,
+            )
+            download_uboot_bin_file.start(blocking=True)
+        elif platform == "penglai":
+            pass
     input_excel = config.get('input_excel','')
     if input_excel == '':
         console.print(f"input_excel字段不可以为空")
