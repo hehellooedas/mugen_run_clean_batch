@@ -200,12 +200,12 @@ def check_config(config:dict)->dict:
                 timeout=10,
                 progress_bar=True,
             )
-            download_drive_file.start(blocking=True)
+            download_drive_file.start(blocking=False)
 
             VIRT_CODE = config.get('VIRT_CODE','')
             if VIRT_CODE == '' or check_url(VIRT_CODE) is False:
                 console.print(f"您输入的VIRT_CODE字段url无法访问,请检查")
-                #sys.exit(1)
+                sys.exit(1)
             result['VIRT_CODE'] = VIRT_CODE
             result['VIRT_CODE_FILE'] = mrcb_firmware_dir / PurePosixPath(VIRT_CODE).name
             download_VIRT_CODE_file:SmartDL = SmartDL(
@@ -221,7 +221,7 @@ def check_config(config:dict)->dict:
             VIRT_VARS = config.get('VIRT_VARS','')
             if VIRT_VARS == '' or check_url(VIRT_VARS) is False:
                 console.print(f"您输入的VIRT_VARS字段url无法访问,请检查")
-                #sys.exit(1)
+                sys.exit(1)
             result['VIRT_VARS'] = VIRT_VARS
             result['VIRT_VARS_FILE'] = mrcb_firmware_dir / PurePosixPath(VIRT_VARS).name
             download_VIRT_VARS_file:SmartDL = SmartDL(
@@ -232,11 +232,28 @@ def check_config(config:dict)->dict:
                 progress_bar=True,
             )
             download_VIRT_VARS_file.start(blocking=True)
+            download_drive_file.wait()
 
+        elif platform == "UBOOT":
+            drive_url:str = config.get('drive_url','')
+            if drive_url == '' or check_url(drive_url) is False:
+                console.print(f'您输入的drive_url字段url无法访问,请检查')
+                sys.exit(1)
+            result['drive_name'] = PurePosixPath(drive_url).name
 
-        elif platform == "uboot":
-            uboot_bin:str = config.get('uboot_bin')
-            if uboot_bin is None:
+            download_drive_file:SmartDL = SmartDL(
+                urls = [
+                    drive_url
+                ],
+                dest = str(mrcb_runtime_default_dir / result['drive_name']),
+                threads = min(cpu_count,32),
+                timeout=10,
+                progress_bar=True,
+            )
+            download_drive_file.start(blocking=False)
+
+            uboot_bin:str = config.get('uboot_bin','')
+            if uboot_bin == '' or check_url(uboot_bin) is False:
                 print(f'您输入的uboot_bin字段为空,请检查Toml文件')
                 sys.exit(1)
             result['UBOOT_BIN_FILE'] = mrcb_firmware_dir / PurePosixPath(uboot_bin).name
@@ -248,7 +265,9 @@ def check_config(config:dict)->dict:
                 progress_bar=True,
             )
             download_uboot_bin_file.start(blocking=True)
-        elif platform == "penglai":
+            download_drive_file.wait()
+
+        elif platform == "PENGLAI":
             pass
     input_excel = config.get('input_excel','')
     if input_excel == '':
@@ -487,7 +506,6 @@ def make_template_image():
                     'UBOOT_BIN_FILE':config['UBOOT_BIN_FILE'],
                     'DRIVE_FILE': drive_name, 'DRIVE_TYPE': config['drive_type'],
                     'compress_format': config['compress_format'],
-                    'DEVICE_TYPE': config['device_type'],
                 }
             )
 

@@ -1,5 +1,5 @@
 arch='RISC-V'
-platform='UEFI'
+platform='UBOOT'
 drive_url='https://repo.tarsier-infra.isrc.ac.cn/openEuler-RISC-V/devel/20231024/v0.5/QEMU/openEuler-23.09-V1-base-qemu-devel.qcow2.zst'
 drive_type='qcow2'
 compress_format='xz'
