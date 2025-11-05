@@ -48,6 +48,7 @@ class RISC_V_UEFI:
     @staticmethod
     def make_openEuler_image(**kwargs):
         default_workdir:Path = kwargs.get('default_workdir')
+        mugen_dir:Path = kwargs.get('mugen_dir')
         VIRT_VARS_FILE:Path = kwargs.get('VIRT_VARS_FILE')
         VIRT_CODE_FILE:Path = kwargs.get('VIRT_CODE_FILE')
         DRIVE_NAME:Path = Path(kwargs.get('DRIVE_FILE'))
@@ -140,15 +141,21 @@ class RISC_V_UEFI:
         time.sleep(60)
         client:paramiko.SSHClient = get_client('127.0.0.1','openEuler12#$',20000)
 
-        # 安装必备的rpm包并拉取mugen项目
+        # copy mugen到镜像内
+        with paramiko.SFTPClient.from_transport(client.get_transport()) as sftp:
+            sftp.put(mugen_dir,'/root/')
+
+        # 安装必备的rpm包
         stdin,stdout,stderr = client.exec_command(
-            'dnf install -y git top python3 && git clone https://gitee.com/openeuler/mugen.git &&'
+            'dnf install -y git top python3 && '
             'cd mugen/ && chmod +x dep_install.sh mugen.sh && bash dep_install.sh'
         )
         if stdout.channel.recv_exit_status() != 0:
-            print(f"虚拟机中拉取mugen项目失败！报错信息:{stderr.read().decode('utf-8')}")
+            print(f"虚拟机中执行mugen初始化环境失败！报错信息:{stderr.read().decode('utf-8')}")
         print(stdout.read().decode('utf-8'))
         time.sleep(5)
+
+
         QEMU.kill()
         # 初始化mugen
         # stdin,stdout,stderr = client.exec_command(

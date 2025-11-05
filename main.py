@@ -498,6 +498,7 @@ def make_template_image():
                    'DRIVE_FILE':drive_name,'DRIVE_TYPE':config['drive_type'],
                    'compress_format':config['compress_format'],
                    'DEVICE_TYPE':config['device_type'],
+                   'mugen_dir':mrcb_mugen_dir
                 })
         elif platform == 'UBOOT':
             arch_platforms.RISC_V_UBOOT.make_openEuler_image(
@@ -506,6 +507,7 @@ def make_template_image():
                     'UBOOT_BIN_FILE':config['UBOOT_BIN_FILE'],
                     'DRIVE_FILE': drive_name, 'DRIVE_TYPE': config['drive_type'],
                     'compress_format': config['compress_format'],
+                    'mugen_dir': mrcb_mugen_dir
                 }
             )
 
