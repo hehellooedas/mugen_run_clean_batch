@@ -1,10 +1,26 @@
 from pathlib import Path,PurePosixPath
-from tabnanny import check
-
 from psycopg2.pool import ThreadedConnectionPool
 import subprocess
-import psutil,shutil
+import shutil,time,os
 import gzip,bz2,lzma,zstandard
+import paramiko
+
+
+def get_client(ip, password, port=22):
+    client = paramiko.SSHClient()
+    client.load_system_host_keys()
+    client.set_missing_host_key_policy(paramiko.AutoAddPolicy)
+    try:
+        client.connect(hostname=ip, port=port, username="root", password=password, timeout=100)
+    except (
+            paramiko.ssh_exception.NoValidConnectionsError,
+            paramiko.ssh_exception.AuthenticationException,
+            paramiko.ssh_exception.SSHException,
+            TypeError,
+            AttributeError,
+    ) as e:
+        print(f"无法连接到远程机器:{ip}.\n原因： {e}")
+    return client
 
 
 
@@ -111,7 +127,19 @@ class RISC_V_UEFI:
             print(f"QEMU's pid = {QEMU.pid}")
         except subprocess.CalledProcessError as e:
             print(e)
-        finally:
-            print('Hello finally!')
-            QEMU.kill()
-        print('Hello World!')
+        client:paramiko.SSHClient = get_client('127.0.0.1','openEuler12#$',20000)
+
+        # 安装必备的rpm包并拉取mugen项目
+        stdin,stdout,stderr = client.exec_command(
+            'dnf install -y git top python3 && git clone https://gitee.com/openeuler/mugen.git &&'
+            'cd mugen/ && chmod +x dep_install.sh mugen.sh && bash dep_install.sh'
+        )
+        if stdout.channel.recv_exit_status() != 0:
+            print(f"虚拟机中拉取mugen项目失败！报错信息:{stderr.read().decode('utf-8')}")
+        print(stdout.read().decode('utf-8'))
+        time.sleep(5)
+        QEMU.kill()
+        # 初始化mugen
+        # stdin,stdout,stderr = client.exec_command(
+        #
+        # )
