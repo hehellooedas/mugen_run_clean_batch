@@ -1,3 +1,4 @@
+import sys
 from pathlib import Path,PurePosixPath
 from psycopg2.pool import ThreadedConnectionPool
 import subprocess
@@ -72,8 +73,8 @@ class RISC_V_UEFI:
             print("未检测到压缩格式，按照无压缩处理...")
 
         # 转变为绝对路径
-        VIRT_VARS_FILE.resolve()
-        VIRT_CODE_FILE.resolve()
+        VIRT_VARS_FILE = VIRT_VARS_FILE.expanduser().resolve(strict=True)
+        VIRT_CODE_FILE = VIRT_CODE_FILE.expanduser().resolve(strict=True)
 
         # 对两个固件进行软链接
         Path(default_workdir / PurePosixPath(VIRT_VARS_FILE).name).symlink_to(VIRT_VARS_FILE)
@@ -117,7 +118,7 @@ class RISC_V_UEFI:
                   -device virtio-rng-device,rng=rng0 \
                   -device virtio-blk-device,drive=hd0 \
                   -device virtio-net-device,netdev=usernet \
-                  -netdev user,id=usernet,hostfwd=tcp::"20000"-:22 \
+                  -netdev user,id=usernet,hostfwd=tcp:127.0.0.1:20000-:22 \
                   -device qemu-xhci -usb -device usb-kbd -device usb-tablet
             """,
                 stdout=subprocess.PIPE,
@@ -127,6 +128,7 @@ class RISC_V_UEFI:
             print(f"QEMU's pid = {QEMU.pid}")
         except subprocess.CalledProcessError as e:
             print(e)
+            sys.exit(1)
         client:paramiko.SSHClient = get_client('127.0.0.1','openEuler12#$',20000)
 
         # 安装必备的rpm包并拉取mugen项目
