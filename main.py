@@ -563,13 +563,25 @@ def run_all_tests():
     with pgsql_pool.getconn() as conn:
         with conn.cursor() as cursor:
             query = sql.SQL("""
-            select count(*) from {}.{}
+            select id,testsuite,testcase from {}.{} order by id
             """).format(
                 sql.Identifier('public'),
                 sql.Identifier(f'workdir_{current_strftime}'))
+            cursor.itersize = 100
             cursor.execute(query)
-            print(f"数据库中显示当前有{cursor.fetchone()[0]}条记录!")
+            count = 0
 
+            for record in cursor:
+                if count == 0:
+                    print("开始打印所有记录信息")
+                print(f"id = {record[0]}" ,testsuite = record[1], testcase = record[2])
+                count += 1
+            print(f"当前数据库中有{count}条记录")
+
+
+    if arch == 'RISC-V':
+        if platform == 'UBOOT':
+            pass
 
 
 if __name__ == "__main__":
