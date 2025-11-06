@@ -254,7 +254,7 @@ def check_config(config:dict)->dict:
 
             uboot_bin:str = config.get('uboot_bin','')
             if uboot_bin == '' or check_url(uboot_bin) is False:
-                print(f'您输入的uboot_bin字段为空,请检查Toml文件')
+                print(f'您输入的uboot_bin字段无效(未填写或出现网络问题无法访问),请检查Toml文件')
                 sys.exit(1)
             result['UBOOT_BIN_FILE'] = mrcb_firmware_dir / PurePosixPath(uboot_bin).name
             download_uboot_bin_file:SmartDL = SmartDL(
@@ -574,7 +574,7 @@ def run_all_tests():
             for record in cursor:
                 if count == 0:
                     print("开始打印所有记录信息")
-                print(f"id = {record[0]}" ,testsuite = record[1], testcase = record[2])
+                print(f"id = {record[0]} ,testsuite ={record[1]}, testcase ={record[2]}")
                 count += 1
             print(f"当前数据库中有{count}条记录")
 
