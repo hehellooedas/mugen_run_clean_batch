@@ -3,9 +3,11 @@ from pathlib import Path,PurePosixPath
 from psycopg2.pool import ThreadedConnectionPool
 import subprocess
 import shutil,time,os
-import gzip,bz2,lzma,zstandard
+import gzip,bz2,lzma,zstandard,tarfile,tempfile
 import paramiko
+from faker import Faker
 
+faker = Faker()
 
 def get_client(ip, password, port=22):
     client = paramiko.SSHClient()
@@ -74,7 +76,7 @@ class RISC_V_UBOOT:
                         -device virtio-gpu \
                         -device virtio-rng-pci,rng=rng0 \
                         -device virtio-blk-pci,drive=hd0 \
-                        -device virtio-net-pci,netdev=usernet \
+                        -device virtio-net-pci,netdev=usernet,mac={faker.mac_address()} \
                         -netdev user,id=usernet,hostfwd=tcp:127.0.0.1:20000-:22
                 """,
                 stdout=subprocess.PIPE,
@@ -93,16 +95,21 @@ class RISC_V_UBOOT:
             shell=True,
             stdout=subprocess.PIPE,
         )
+
         time.sleep(120)
         client: paramiko.SSHClient = get_client('127.0.0.1', 'openEuler12#$', 20000)
         time.sleep(5)
-        # copy mugen到镜像内
+        # copy mugen到镜像内(sftp只能传输文件而不能是目录)
         with paramiko.SFTPClient.from_transport(client.get_transport()) as sftp:
-            sftp.put(mugen_dir,'/root/')
+            with tempfile.SpooledTemporaryFile(max_size=64*1024*1024) as buf:
+                with tarfile.open(buf,'w:xz') as tar:
+                    tar.add(mugen_dir,recursive=True,arcname='mugen')
+                buf.seek(0)
+                sftp.putfo(buf,'/root/')
 
         # 安装必备的rpm包
         stdin,stdout,stderr = client.exec_command(
-            'dnf install -y git htop python3 && '
+            'dnf install -y git htop python3 && tar -xf mugen.tar.xz'
             'cd mugen/ && chmod +x dep_install.sh mugen.sh && bash dep_install.sh'
         )
         if stdout.channel.recv_exit_status() != 0:

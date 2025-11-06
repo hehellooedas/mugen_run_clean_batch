@@ -5,6 +5,9 @@ import subprocess
 import shutil,time,os
 import gzip,bz2,lzma,zstandard
 import paramiko
+from faker import Faker
+
+faker = Faker()
 
 
 def get_client(ip, password, port=22):
@@ -118,7 +121,7 @@ class RISC_V_UEFI:
                   -device virtio-vga \
                   -device virtio-rng-device,rng=rng0 \
                   -device virtio-blk-device,drive=hd0 \
-                  -device virtio-net-device,netdev=usernet \
+                  -device virtio-net-device,netdev=usernet,mac={faker.mac_address()} \
                   -netdev user,id=usernet,hostfwd=tcp:127.0.0.1:20000-:22 \
                   -device qemu-xhci -usb -device usb-kbd -device usb-tablet
             """,

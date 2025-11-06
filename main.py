@@ -485,6 +485,40 @@ def init_postgresql():
         cursor.close()
 
 
+def init_internet_gateway():
+    # 宿主机创建网桥,并给网桥配置IP
+    try:
+        subprocess.run(
+            args = "brctl addbr br0 && "
+                   "ip link set br0 up && "
+                   "ip addr add 10.0.0.1/24 dev br0",
+            shell = True,
+            check = True,
+            stdout = subprocess.PIPE,
+            stderr = subprocess.PIPE,
+        )
+    except subprocess.CalledProcessError as e:
+        print(f"初始化网关失败.报错信息:{e.stderr.decode('utf-8')}")
+        print("详细请参考:https://github.com/openeuler-riscv/oerv-qa/blob/main/docs/mugen/Mugen%E6%B5%8B%E8%AF%95Lesson%20Learn.md")
+        sys.exit(1)
+
+    # 宿主机添加虚拟网卡(有几台vm就需要几个tap)全都挂到同一个br0上面
+    try:
+        for i in range(1,cpu_count+1):
+            subprocess.run(
+                args = f"ip tuntap add tap{i} mode tap &&"
+                       f"brctl addif br0 tap{i} &&"
+                       f"ip link set tap{i} up",
+                shell = True,
+                check = True,
+                stdout = subprocess.PIPE,
+                stderr = subprocess.PIPE,
+            )
+    except subprocess.CalledProcessError as e:
+        print(f"创建虚拟网卡失败.报错信息:{e.stderr.decode('utf-8')}")
+
+
+
 # 制作镜像模板
 def make_template_image():
     drive_name = config.get('drive_name')
@@ -522,6 +556,7 @@ if __name__ == "__main__":
     config:dict = check_config(config)
     init_postgresql()
     input_from_excel()
+    init_internet_gateway()
     make_template_image()
 
 
