@@ -26,12 +26,20 @@ def get_client(ip, password, port=22):
     return client
 
 
+
 class RISC_V_UBOOT:
     def __init__(self):
         self.arch = 'RISC-V'        # 当前测试类负责的指令集架构
         self.platform = 'UBOOT'     # 当前测试类负责的系统启动引导平台
         self.suite = ''             # 当前测试类待测试的mugen测试套名称
         self.case = ''              # 当前测试类待测试的mugen测试名称
+
+
+
+
+    def run_test(self):
+        pass
+
 
 
     @staticmethod
@@ -73,11 +81,12 @@ class RISC_V_UBOOT:
                         -bios {UBOOT_BIN_FILE} \
                         -drive if=none,file={default_workdir / DRIVE_NAME.with_suffix('')},format={DRIVE_TYPE},id=hd0 \
                         -object rng-random,filename=/dev/urandom,id=rng0 \
-                        -device virtio-gpu \
                         -device virtio-rng-pci,rng=rng0 \
                         -device virtio-blk-pci,drive=hd0 \
+                        -netdev tap,id=net0,ifname=tap0,script=no,downscript=no -device virtio-net-pci,netdev=net0,mac={faker.mac_address()} \
                         -device virtio-net-pci,netdev=usernet,mac={faker.mac_address()} \
-                        -netdev user,id=usernet,hostfwd=tcp:127.0.0.1:20000-:22
+                        -netdev user,id=usernet,hostfwd=tcp:127.0.0.1:20000-:22 \
+                        -device qemu-xhci -usb -device usb-kbd 
                 """,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -112,11 +121,26 @@ class RISC_V_UBOOT:
 
         # 安装必备的rpm包
         stdin,stdout,stderr = client.exec_command(
-            'dnf install -y git htop python3 && '
+            'set -e;'
+            'dnf install -y git htop python3 && rpm --rebuilddb && dnf update -y &&'
             'cd mugen/ && chmod +x dep_install.sh mugen.sh && bash dep_install.sh'
         )
         if stdout.channel.recv_exit_status() != 0:
             print(f"虚拟机中执行mugen初始化环境失败！报错信息:{stderr.read().decode('utf-8')}")
+
+        stdin,stdout,stderr = client.exec_command(
+            f"""
+                nmcli con add type ethernet con-name net-static ifname enp0s3 ip4 10.0.0.2/24 gw4 10.0.0.254 && 
+                nmcli con up net-static && nmcli device status && 
+                cd mugen/ && bash mugen.sh -c --ip 10.0.0.2 --password openEuler12#$
+            """
+        )
+        if stdout.channel.recv_exit_status() != 0:
+            print(f"tap网络设置错误,或mugen创建conf/env.json失败!报错信息:{stderr.read().decode('utf-8')}")
+
+        with client.open_sftp() as sftp:
+            with sftp.open('/root/mugen/conf/env.json','r') as env:
+                print(f"env content:{env.read().decode('utf-8')}")
 
 
         #QEMU.kill()

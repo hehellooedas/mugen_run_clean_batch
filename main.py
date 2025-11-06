@@ -502,7 +502,7 @@ def init_internet_gateway():
             stderr = subprocess.PIPE,
         )
         if br0.returncode != 0:
-            print(f"初始化网关失败.报错信息:{br0.stderr.decode('utf-8')}")
+            print(f"初始化网关失败.报错信息:{br0.stderr.decode('utf-8')}.  该提示信息可以忽略...")
             print("详细请参考:https://github.com/openeuler-riscv/oerv-qa/blob/main/docs/mugen/Mugen%E6%B5%8B%E8%AF%95Lesson%20Learn.md")
             #sys.exit(1)
     else:
@@ -517,7 +517,7 @@ def init_internet_gateway():
 
     # 宿主机添加虚拟网卡(有几台vm就需要几个tap)全都挂到同一个br0上面
     try:
-        for i in range(1,cpu_count+1):
+        for i in range(cpu_count+1):
             subprocess.run(
                 args = f"ip tuntap add tap{i} mode tap &&"
                        f"brctl addif br0 tap{i} &&"
@@ -528,7 +528,7 @@ def init_internet_gateway():
                 stderr = subprocess.PIPE,
             )
     except subprocess.CalledProcessError as e:
-        print(f"创建虚拟网卡失败.报错信息:{e.stderr.decode('utf-8')}")
+        print(f"创建虚拟网卡失败.报错信息:{e.stderr.decode('utf-8')}.  该提示信息可以忽略...")
 
 
 
@@ -559,6 +559,18 @@ def make_template_image():
             )
 
 
+def run_all_tests():
+    with pgsql_pool.getconn() as conn:
+        with conn.cursor() as cursor:
+            query = sql.SQL("""
+            select count(*) from {}.{}
+            """).format(
+                sql.Identifier('public'),
+                sql.Identifier(f'workdir_{current_strftime}'))
+            cursor.execute(query)
+            print(f"数据库中显示当前有{cursor.fetchone()[0]}条记录!")
+
+
 
 if __name__ == "__main__":
     start_time = time.time()
@@ -570,11 +582,8 @@ if __name__ == "__main__":
     init_postgresql()
     input_from_excel()
     init_internet_gateway()
-    make_template_image()
-
-
-
-
+    #make_template_image()
+    run_all_tests()
 
     # 正式开始测试
     # with ThreadPoolExecutor(max_workers=cpu_count) as executor:
