@@ -486,21 +486,34 @@ def init_postgresql():
 
 
 def init_internet_gateway():
-    # 宿主机创建网桥,并给网桥配置IP
-    try:
-        subprocess.run(
+    # 若br0不存在
+    br0 = subprocess.run(
+        args = "brctl show br0",
+        shell = True,
+    )
+    if br0.returncode != 0:
+        # 宿主机创建网桥,并给网桥配置IP
+        br0 = subprocess.run(
             args = "brctl addbr br0 && "
                    "ip link set br0 up && "
                    "ip addr add 10.0.0.1/24 dev br0",
             shell = True,
-            check = True,
             stdout = subprocess.PIPE,
             stderr = subprocess.PIPE,
         )
-    except subprocess.CalledProcessError as e:
-        print(f"初始化网关失败.报错信息:{e.stderr.decode('utf-8')}")
-        print("详细请参考:https://github.com/openeuler-riscv/oerv-qa/blob/main/docs/mugen/Mugen%E6%B5%8B%E8%AF%95Lesson%20Learn.md")
-        sys.exit(1)
+        if br0.returncode != 0:
+            print(f"初始化网关失败.报错信息:{br0.stderr.decode('utf-8')}")
+            print("详细请参考:https://github.com/openeuler-riscv/oerv-qa/blob/main/docs/mugen/Mugen%E6%B5%8B%E8%AF%95Lesson%20Learn.md")
+            #sys.exit(1)
+    else:
+        set_br0 = subprocess.run(
+            args = "ip link set br0 up && "
+                    "ip addr add 10.0.0.1/24 dev br0",
+                shell = True,
+                stdout = subprocess.PIPE,
+                stderr = subprocess.PIPE,
+            )
+
 
     # 宿主机添加虚拟网卡(有几台vm就需要几个tap)全都挂到同一个br0上面
     try:

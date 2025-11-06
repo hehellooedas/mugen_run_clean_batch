@@ -3,7 +3,7 @@ from pathlib import Path,PurePosixPath
 from psycopg2.pool import ThreadedConnectionPool
 import subprocess
 import shutil,time,os
-import gzip,bz2,lzma,zstandard,tarfile,tempfile
+import gzip,bz2,lzma,zstandard,tarfile
 import paramiko
 from faker import Faker
 
@@ -100,16 +100,19 @@ class RISC_V_UBOOT:
         client: paramiko.SSHClient = get_client('127.0.0.1', 'openEuler12#$', 20000)
         time.sleep(5)
         # copy mugen到镜像内(sftp只能传输文件而不能是目录)
-        with paramiko.SFTPClient.from_transport(client.get_transport()) as sftp:
-            with tempfile.SpooledTemporaryFile(max_size=64*1024*1024) as buf:
-                with tarfile.open(buf,'w:xz') as tar:
-                    tar.add(mugen_dir,recursive=True,arcname='mugen')
-                buf.seek(0)
-                sftp.putfo(buf,'/root/')
+        scp = subprocess.run(
+            args = f"export SSHPASS='openEuler12#$' && ssh-keygen -R '[localhost]:20000' && "
+                   f"sshpass -e scp -r -P 20000 -o StrictHostKeyChecking=accept-new {mugen_dir} root@localhost:/root/",
+            shell=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        if scp.returncode != 0:
+            print(f"传输mugen进虚拟机失败.报错信息:{scp.stderr.decode()}")
 
         # 安装必备的rpm包
         stdin,stdout,stderr = client.exec_command(
-            'dnf install -y git htop python3 && tar -xf mugen.tar.xz'
+            'dnf install -y git htop python3 && '
             'cd mugen/ && chmod +x dep_install.sh mugen.sh && bash dep_install.sh'
         )
         if stdout.channel.recv_exit_status() != 0:
