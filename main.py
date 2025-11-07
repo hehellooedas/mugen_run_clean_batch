@@ -18,16 +18,13 @@ import tomllib
 import time
 import json,pickle
 import faker
-import zipfile,lzma,tarfile
-import shutil,psutil
+import shutil
 import os,sys,signal
 import requests
 import humanfriendly
 from collections import namedtuple
 from pathlib import Path,PurePosixPath
-from io import BytesIO
 from openpyxl import load_workbook
-import zstandard as zstd
 from paramiko import SSHClient
 from psycopg2 import sql
 from psycopg2.extras import Json
@@ -36,7 +33,7 @@ from concurrent.futures import ThreadPoolExecutor
 from queue import Queue,Empty
 from pySmartDL import SmartDL
 
-
+from arch_platforms import RISC_V_UBOOT
 
 setproctitle('mrcb')    # 设置mrcb的进程名称
 
@@ -59,6 +56,9 @@ pgsql_pool = ThreadedConnectionPool(
     password='postgres',
     dbname='mugen_run_clean_batch',
 )
+id_queue = Queue()
+for i in range(1,cpu_count+1):
+    id_queue.put(i)
 
 
 # mugen测试用例描述
@@ -255,7 +255,7 @@ def check_config(config:dict)->dict:
             uboot_bin:str = config.get('uboot_bin','')
             if uboot_bin == '' or check_url(uboot_bin) is False:
                 print(f'您输入的uboot_bin字段无效(未填写或出现网络问题无法访问),请检查Toml文件')
-                sys.exit(1)
+                #sys.exit(1)
             result['UBOOT_BIN_FILE'] = mrcb_firmware_dir / PurePosixPath(uboot_bin).name
             download_uboot_bin_file:SmartDL = SmartDL(
                 urls = [uboot_bin],
@@ -560,6 +560,7 @@ def make_template_image():
 
 
 def run_all_tests():
+    all_mugen_test_classes = []
     with pgsql_pool.getconn() as conn:
         with conn.cursor() as cursor:
             query = sql.SQL("""
@@ -574,14 +575,27 @@ def run_all_tests():
             for record in cursor:
                 if count == 0:
                     print("开始打印所有记录信息")
-                print(f"id = {record[0]} ,testsuite ={record[1]}, testcase ={record[2]}")
+                #print(f"id = {record[0]} ,testsuite:{record[1]}, testcase:{record[2]}")
                 count += 1
+
+                if arch == 'RISC-V':
+                    if platform == 'UBOOT':
+                        all_mugen_test_classes.append(RISC_V_UBOOT(**{
+                            'testsuite': record[1],
+                            'testcase': record[2],
+                            'workdir_runtime':mrcb_runtime_dir,
+                            'pgsql_pool' : pgsql_pool,
+                            'id_queue':id_queue,
+                            'database_table_name':f'workdir_{current_strftime}',
+                        }))
+
             print(f"当前数据库中有{count}条记录")
+    with ThreadPoolExecutor (max_workers=cpu_count) as executor:
+        futures = [executor.submit(mugen_test_class.run_lifecycle) for mugen_test_class in all_mugen_test_classes]
+        for future in futures:
+            future.result()
 
 
-    if arch == 'RISC-V':
-        if platform == 'UBOOT':
-            pass
 
 
 if __name__ == "__main__":
@@ -594,7 +608,7 @@ if __name__ == "__main__":
     init_postgresql()
     input_from_excel()
     init_internet_gateway()
-    #make_template_image()
+    make_template_image()
     run_all_tests()
 
     # 正式开始测试

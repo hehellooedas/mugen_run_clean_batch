@@ -173,10 +173,10 @@ def init_postgresql():
 
 
     # 操作并初始化pgsql表和库
-    postgresql = Unit('postgresql.service',_autoload=True)
+    postgresql = Unit(b'postgresql.service',_autoload=True)
     service_load_and_start(postgresql)
-
     time.sleep(3)
+    subprocess.run("systemctl reload postgresql", shell=True)
     try:
         from psycopg2.pool import SimpleConnectionPool
     except ImportError:

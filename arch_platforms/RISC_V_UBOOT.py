@@ -1,11 +1,16 @@
 import sys
 from pathlib import Path,PurePosixPath
 from psycopg2.pool import ThreadedConnectionPool
+from queue import Queue
 import subprocess
-import shutil,time,os
-import gzip,bz2,lzma,zstandard,tarfile
+import shutil,time,json
+import gzip,bz2,lzma,zstandard
 import paramiko
 from faker import Faker
+from psycopg2 import sql
+from psycopg2.extras import register_json
+
+
 
 faker = Faker()
 
@@ -28,18 +33,71 @@ def get_client(ip, password, port=22):
 
 
 class RISC_V_UBOOT:
-    def __init__(self):
+    def __init__(self,**kwargs):
         self.arch = 'RISC-V'        # 当前测试类负责的指令集架构
         self.platform = 'UBOOT'     # 当前测试类负责的系统启动引导平台
-        self.suite = ''             # 当前测试类待测试的mugen测试套名称
-        self.case = ''              # 当前测试类待测试的mugen测试名称
+        self.suite = kwargs.get('testsuite')             # 当前测试类待测试的mugen测试套名称
+        self.case = kwargs.get('testcase')              # 当前测试类待测试的mugen测试名称
+        self.vcpu = 2
+        self.database_table_name = kwargs.get('database_table_name')
+        self.workdir_runtime = kwargs.get('workdir_runtime')
+        self.id_queue:Queue = kwargs.get('id_queue')
 
+        self.pool:ThreadedConnectionPool = kwargs.get('pgsql_pool')
+
+
+
+    def pre_test(self):
+        self.machine_id = self.id_queue.get()
+        self.ssh_port = self.machine_id + 20000
+        self.workdir = self.workdir_runtime / str(self.machine_id)
+        if (self.workdir).exists():
+            shutil.rmtree(self.workdir)
+        shutil.copytree(self.workdir_runtime / 'default',self.workdir)
+
+        # 从数据库中取出json描述信息
+        with self.pool.getconn() as conn:
+            register_json(conn,loads=json.loads)
+            with conn.cursor() as cursor:
+                query = sql.SQL("select desc_json from {} where testsuite=%s and testcase=%s").format(sql.Identifier('public',self.database_table_name))
+                cursor.execute(query,(self.suite,self.case))
+                desc_json = cursor.fetchone()
+                print(desc_json)
+
+
+
+        # 机器类型(kvm/physical)
+        self.machine_type = desc_json.get('machine_type','kvm')
+
+        # 额外添加的网卡数量
+        self.add_network_interface = desc_json.get('add_network_interface',0)
+
+        # 额外添加的磁盘数量
+        self.add_disk = desc_json.get('add_disk',[])
+        if self.add_disk != []:
+            (self.workdir / 'disks').mkdir(parents=True)    # 创建磁盘所在目录
+            for i in range(1,len(self.add_disk)+1):
+                subprocess.run(     # 分别创建每一个磁盘
+                    args = f"qemu-img create -f qcow2 disk{i}.qcow2 {self.add_disk[i-1]}G",
+                    shell=True,cwd=self.workdir / 'disks',
+                )
 
 
 
     def run_test(self):
         pass
 
+
+    def post_test(self):
+        # 把任务ID放回资源池
+        self.id_queue.put(self.machine_id)
+        shutil.rmtree(self.workdir)
+
+
+    def run_lifecycle(self):
+        self.pre_test()
+        self.run_test()
+        self.post_test()
 
 
     @staticmethod
@@ -143,4 +201,8 @@ class RISC_V_UBOOT:
                 print(f"env content:{env.read().decode('utf-8')}")
 
 
+        stdin,stdout,stderr = client.exec_command(
+            "poweroff"
+        )
+        time.sleep(20)
         #QEMU.kill()

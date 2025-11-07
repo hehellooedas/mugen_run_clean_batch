@@ -9,3 +9,4 @@ humanfriendly
 pystemd
 faker
 pysmartdl
+requests
