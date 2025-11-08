@@ -5,4 +5,4 @@ drive_type='qcow2'
 compress_format='zstd'
 uboot_bin='https://repo.tarsier-infra.isrc.ac.cn/openEuler-RISC-V/devel/20250914/v0.1/QEMU/fw_payload_oe_uboot_2304.bin'
 input_excel='/root/第一轮测试组筛选.xlsx'
-from_to=[2,641]
+from_to=[2,10]

@@ -56,13 +56,14 @@ class RISC_V_UBOOT:
         shutil.copytree(self.workdir_runtime / 'default',self.workdir)
 
         # 从数据库中取出json描述信息
-        with self.pool.getconn() as conn:
-            register_json(conn,loads=json.loads)
-            with conn.cursor() as cursor:
-                query = sql.SQL("select desc_json from {} where testsuite=%s and testcase=%s").format(sql.Identifier('public',self.database_table_name))
-                cursor.execute(query,(self.suite,self.case))
-                desc_json = cursor.fetchone()
-                print(desc_json)
+        conn = self.pool.getconn()
+        register_json(conn,loads=json.loads)
+        with conn.cursor() as cursor:
+            query = sql.SQL("select desc_json from {} where testsuite=%s and testcase=%s").format(sql.Identifier('public',self.database_table_name))
+            cursor.execute(query,(self.suite,self.case))
+            desc_json = cursor.fetchone()[0]
+            print(desc_json)
+        self.pool.putconn(conn)
 
 
 
@@ -89,9 +90,9 @@ class RISC_V_UBOOT:
 
 
     def post_test(self):
-        # 把任务ID放回资源池
-        self.id_queue.put(self.machine_id)
+        # 把任务ID放回资源池,必须先删除工作目录再放回queue
         shutil.rmtree(self.workdir)
+        self.id_queue.put(self.machine_id)
 
 
     def run_lifecycle(self):
