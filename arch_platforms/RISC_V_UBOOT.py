@@ -46,7 +46,7 @@ class RISC_V_UBOOT:
         self.pool:ThreadedConnectionPool = kwargs.get('pgsql_pool')
 
 
-        self.UBOOT_BIN_FILE: Path = kwargs.get('UBOOT_BIN_FILE')
+        self.UBOOT_BIN_NAME: Path = kwargs.get('UBOOT_BIN_NAME')
         self.DRIVE_NAME: Path = Path(kwargs.get('DRIVE_FILE'))
         self.DRIVE_TYPE: Path = kwargs.get('DRIVE_TYPE')
 
@@ -54,13 +54,17 @@ class RISC_V_UBOOT:
 
     def pre_test(self):
         self.machine_id = self.id_queue.get()
+        self.workdir = self.workdir_runtime / str(self.machine_id)
+        if (self.workdir).exists():
+            shutil.rmtree(self.workdir)
+        shutil.copytree(self.workdir_runtime / 'default',self.workdir)
         self.ssh_port = self.machine_id + 20000
         self.QEMU_script = f"""
                     qemu-system-riscv64 \
                         -nographic -machine virt \
                         -smp 8 -m 4G \
-                        -bios {self.UBOOT_BIN_FILE} \
-                        -drive if=none,file={self.workdir_runtime / self.DRIVE_NAME.with_suffix('')},format={self.DRIVE_TYPE},id=hd0 \
+                        -bios {self.workdir / self.UBOOT_BIN_NAME} \
+                        -drive if=none,file={self.workdir / self.DRIVE_NAME.with_suffix('')},format={self.DRIVE_TYPE},id=hd0 \
                         -object rng-random,filename=/dev/urandom,id=rng0 \
                         -device virtio-rng-pci,rng=rng0 \
                         -device virtio-blk-pci,drive=hd0 \
@@ -69,10 +73,6 @@ class RISC_V_UBOOT:
                         -netdev user,id=usernet,hostfwd=tcp:127.0.0.1:{self.ssh_port}-:22 \
                         -device qemu-xhci -usb -device usb-kbd
                 """
-        self.workdir = self.workdir_runtime / str(self.machine_id)
-        if (self.workdir).exists():
-            shutil.rmtree(self.workdir)
-        shutil.copytree(self.workdir_runtime / 'default',self.workdir)
 
         # 从数据库中取出json描述信息
         conn = self.pool.getconn()
@@ -203,15 +203,20 @@ class RISC_V_UBOOT:
         if compress_format == 'gzip':
             with gzip.open(default_workdir / DRIVE_NAME,'rb') as fin,open(default_workdir / Path(DRIVE_NAME).with_suffix(''),'wb') as fout:
                 shutil.copyfileobj(fin, fout,length=1024*1024*32)
+            # 解压缩后删除压缩前的文件以减小磁盘占用
+            (default_workdir / DRIVE_NAME).unlink()
         elif compress_format == 'bzip2':
             with bz2.open(default_workdir / DRIVE_NAME,'rb') as fin,open(default_workdir / Path(DRIVE_NAME).with_suffix(''),'wb') as fout:
                 shutil.copyfileobj(fin, fout,length=1024*1024*32)
+            (default_workdir / DRIVE_NAME).unlink()
         elif compress_format == 'xz':
             with lzma.open(default_workdir / DRIVE_NAME,'rb') as fin,open(default_workdir / Path(DRIVE_NAME).with_suffix(''),'wb') as fout:
                 shutil.copyfileobj(fin, fout,length=1024*1024*32)
+            (default_workdir / DRIVE_NAME).unlink()
         elif compress_format == 'zstd':
             with zstandard.open(default_workdir / DRIVE_NAME,'rb') as fin,open(default_workdir / Path(DRIVE_NAME).with_suffix(''),'wb') as fout:
                 shutil.copyfileobj(fin, fout,length=1024*1024*32)
+            (default_workdir / DRIVE_NAME).unlink()
         else:
             print("未检测到压缩格式，按照无压缩处理...")
 

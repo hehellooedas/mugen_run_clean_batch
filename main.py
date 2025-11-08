@@ -71,14 +71,6 @@ mugen_test = namedtuple(
         'TestCase'      # 测试用例名
     ]
 )
-mugen_tests:Queue = Queue(maxsize=cpu_count * 2)      # 存放所有测试用例描述的列表
-target_mugen_tail_object:object = object()             # 队列尾标志
-# 把所有待测试项目全部放进队列里
-def put_mugen_test_to_queue(mugen_test_list:list):
-    for mugen_test in mugen_test_list:
-        mugen_tests.put(mugen_test,block=True)
-    mugen_tests.put(target_mugen_tail_object,block=True)
-
 
 
 
@@ -259,6 +251,7 @@ def check_config(config:dict)->dict:
                 print(f'您输入的uboot_bin字段无效(未填写或出现网络问题无法访问),请检查Toml文件')
                 #sys.exit(1)
             result['UBOOT_BIN_FILE'] = mrcb_firmware_dir / PurePosixPath(uboot_bin).name
+            result['UBOOT_BIN_NAME'] = PurePosixPath(uboot_bin).name
             download_uboot_bin_file:SmartDL = SmartDL(
                 urls = [uboot_bin],
                 dest = str(result['UBOOT_BIN_FILE']),
@@ -591,7 +584,7 @@ def run_all_tests():
                             'id_queue':id_queue,
                             'database_table_name':f'workdir_{current_strftime}',
                             'multi_machine_lock':multi_machine_lock,
-                            'UBOOT_BIN_FILE': config['UBOOT_BIN_FILE'],
+                            'UBOOT_BIN_NAME': config['UBOOT_BIN_NAME'],
                             'DRIVE_FILE': config.get('drive_name'), 'DRIVE_TYPE': config['drive_type'],
                         }))
 
