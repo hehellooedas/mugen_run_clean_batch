@@ -167,6 +167,7 @@ class RISC_V_UBOOT:
         client: paramiko.SSHClient = get_client('127.0.0.1', 'openEuler12#$', 20000)
         time.sleep(5)
         # copy mugen到镜像内(sftp只能传输文件而不能是目录)
+        Path('/root/.ssh/known_hosts',exists_ok=True)
         scp = subprocess.run(
             args = f"export SSHPASS='openEuler12#$' && ssh-keygen -R '[localhost]:20000' && "
                    f"sshpass -e scp -r -P 20000 -o StrictHostKeyChecking=accept-new {mugen_dir} root@localhost:/root/",
@@ -176,6 +177,7 @@ class RISC_V_UBOOT:
         )
         if scp.returncode != 0:
             print(f"传输mugen进虚拟机失败.报错信息:{scp.stderr.decode()}")
+            sys.exit(1)
 
         # 安装必备的rpm包
         stdin,stdout,stderr = client.exec_command(
