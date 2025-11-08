@@ -19,7 +19,7 @@ def get_client(ip, password, port=22):
     client.load_system_host_keys()
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy)
     try:
-        client.connect(hostname=ip, port=port, username="root", password=password, timeout=100)
+        client.connect(hostname=ip, port=port, username="root", password=password, timeout=600)
     except (
             paramiko.ssh_exception.NoValidConnectionsError,
             paramiko.ssh_exception.AuthenticationException,
@@ -68,7 +68,7 @@ class RISC_V_UBOOT:
                         -object rng-random,filename=/dev/urandom,id=rng0 \
                         -device virtio-rng-pci,rng=rng0 \
                         -device virtio-blk-pci,drive=hd0 \
-                        -netdev tap,id=net0,ifname=tap0,script=no,downscript=no -device virtio-net-pci,netdev=net0,mac={faker.mac_address()} \
+                        -netdev tap,id=net0,ifname=tap{self.ssh_port},script=no,downscript=no -device virtio-net-pci,netdev=net0,mac={faker.mac_address()} \
                         -device virtio-net-pci,netdev=usernet,mac={faker.mac_address()} \
                         -netdev user,id=usernet,hostfwd=tcp:127.0.0.1:{self.ssh_port}-:22 \
                         -device qemu-xhci -usb -device usb-kbd
@@ -110,13 +110,13 @@ class RISC_V_UBOOT:
     def run_test(self):
         # 记录运行mugen时的时间
         start_time = datetime.now()
+        print(self.QEMU_script)
         try:
             self.QEMU = subprocess.Popen(
                 args = self.QEMU_script,
                 shell=True,
-                cwd=self.workdir,
                 stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
             )
         except subprocess.CalledProcessError as e:
             print(f"QEMU启动失败.报错信息:{e}")
