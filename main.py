@@ -58,6 +58,7 @@ id_queue = Queue()
 for i in range(1,cpu_count+1):
     id_queue.put(i)
 multi_machine_lock = Lock()
+new_machine_lock = Lock()   # QEMU不允许同时启动,但可以同时运行
 
 
 # mugen测试用例描述
@@ -591,6 +592,7 @@ def run_all_tests():
                             'multi_machine_lock':multi_machine_lock,
                             'UBOOT_BIN_NAME': config['UBOOT_BIN_NAME'],
                             'DRIVE_FILE': config.get('drive_name'), 'DRIVE_TYPE': config['drive_type'],
+                            'new_machine_lock':new_machine_lock,
                         }))
 
             print(f"当前数据库中有{count}条记录")

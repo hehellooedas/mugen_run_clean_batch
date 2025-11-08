@@ -74,7 +74,7 @@ def check_arch():
 def install_needed_rpms():
     try:
         subprocess.run(
-            "dnf install -y gcc python3-devel nc htop"
+            "dnf install -y gcc python3-devel nc htop "
             "python3-pip python3-Cython python3-psycopg2 "
             "python3-paramiko systemd-devel libffi-devel sshpass "
             "pkgconf libxml2 libxslt libxslt-devel htop bridge-utils "
@@ -131,7 +131,9 @@ def init_postgresql():
             sys.exit(1)
     time.sleep(3)
 
+    # 修改服务器连接监听
     shutil.copy2(src=Path('resources/postgresql.conf'), dst=Path('/var/lib/pgsql/data/postgresql.conf'))
+    # 修改连接认证方式
     shutil.copy2(src=Path('resources/pg_hba.conf'), dst=Path('/var/lib/pgsql/data/pg_hba.conf'))
     shutil.chown(Path('/var/lib/pgsql/data/postgresql.conf'),user='postgres',group='postgres')
     shutil.chown(Path('/var/lib/pgsql/data/pg_hba.conf'), user='postgres', group='postgres')
@@ -177,6 +179,7 @@ def init_postgresql():
     service_load_and_start(postgresql)
     time.sleep(3)
     subprocess.run("systemctl reload postgresql && systemctl enable postgresql", shell=True)
+    subprocess.run("systemctl enable --now sshd", shell=True)
     try:
         from psycopg2.pool import SimpleConnectionPool
     except ImportError:

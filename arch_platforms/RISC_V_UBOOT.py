@@ -11,6 +11,9 @@ from psycopg2 import sql
 from psycopg2.extras import register_json
 from datetime import datetime
 
+from threading import Lock
+
+from main import new_machine_lock
 
 faker = Faker()
 
@@ -19,7 +22,7 @@ def get_client(ip, password, port=22):
     client.load_system_host_keys()
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy)
     try:
-        client.connect(hostname=ip, port=port, username="root", password=password, timeout=600)
+        client.connect(hostname=ip, port=port, username="root", password=password, timeout=60)
     except (
             paramiko.ssh_exception.NoValidConnectionsError,
             paramiko.ssh_exception.AuthenticationException,
@@ -50,6 +53,7 @@ class RISC_V_UBOOT:
         self.DRIVE_NAME: Path = Path(kwargs.get('DRIVE_FILE'))
         self.DRIVE_TYPE: Path = kwargs.get('DRIVE_TYPE')
 
+        self.new_machine_lock:Lock = kwargs.get('new_machine_lock')
 
 
     def pre_test(self):
@@ -62,7 +66,7 @@ class RISC_V_UBOOT:
         self.QEMU_script = f"""
                     qemu-system-riscv64 \
                         -nographic -machine virt \
-                        -smp 8 -m 4G \
+                        -smp {self.vcpu} -m 4G \
                         -bios {self.workdir / self.UBOOT_BIN_NAME} \
                         -drive if=none,file={self.workdir / self.DRIVE_NAME.with_suffix('')},format={self.DRIVE_TYPE},id=hd0 \
                         -object rng-random,filename=/dev/urandom,id=rng0 \
@@ -110,13 +114,14 @@ class RISC_V_UBOOT:
     def run_test(self):
         # 记录运行mugen时的时间
         start_time = datetime.now()
-        print(self.QEMU_script)
+        # print(self.QEMU_script,self.machine_id,self.ssh_port)
+        new_machine_lock.acquire()
         try:
             self.QEMU = subprocess.Popen(
                 args = self.QEMU_script,
                 shell=True,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,start_new_session=True,
             )
         except subprocess.CalledProcessError as e:
             print(f"QEMU启动失败.报错信息:{e}")
@@ -126,8 +131,9 @@ class RISC_V_UBOOT:
             shell=True,
             stdout=subprocess.PIPE,
         )
-        time.sleep(60)
+        time.sleep(120)
         client = get_client('127.0.0.1', 'openEuler12#$', self.ssh_port)
+        new_machine_lock.release()
         stdin,stdout,stderr = client.exec_command(
             f"cd /root/mugen && bash mugen.sh -f {self.suite} -r {self.case} -x"
         )
@@ -171,6 +177,7 @@ class RISC_V_UBOOT:
                 self.suite,
                 self.case
             ))
+            conn.commit()
 
         self.pool.putconn(conn)
 
@@ -274,11 +281,17 @@ class RISC_V_UBOOT:
         # 安装必备的rpm包
         stdin,stdout,stderr = client.exec_command(
             'set -e;'
-            'dnf install -y git htop python3 && rpm --rebuilddb && dnf update -y &&'
+            'dnf install -y git htop python3 && rpm --rebuilddb && dnf update -y && '
             'cd mugen/ && chmod +x dep_install.sh mugen.sh && bash dep_install.sh'
         )
         if stdout.channel.recv_exit_status() != 0:
             print(f"虚拟机中执行mugen初始化环境失败！报错信息:{stderr.read().decode('utf-8')}")
+
+        stdin,stdout,stderr = client.exec_command(
+            "systemctl disable --now firewalld && systemctl enable --now sshd"
+        )
+        if stdout.channel.recv_exit_status() != 0:
+            print(f"关闭firewalld防火墙失败或者自启动sshd失败.报错信息:{stderr.read().decode('utf-8')}")
 
         stdin,stdout,stderr = client.exec_command(
             f"""
@@ -293,10 +306,11 @@ class RISC_V_UBOOT:
         with client.open_sftp() as sftp:
             with sftp.open('/root/mugen/conf/env.json','r') as env:
                 print(f"env content:{env.read().decode('utf-8')}")
+            with sftp.open('/etc/ssh/sshd_config','r') as ssh_config:
+                print(f"ssh_config  content:{ssh_config.read().decode('utf-8')}")
 
 
         stdin,stdout,stderr = client.exec_command(
-            "poweroff"
+            "systemctl enable --now sshd && poweroff"
         )
-        time.sleep(20)
-        #QEMU.kill()
+        time.sleep(120)
