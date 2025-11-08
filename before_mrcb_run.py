@@ -74,7 +74,7 @@ def check_arch():
 def install_needed_rpms():
     try:
         subprocess.run(
-            "dnf install -y gcc python3-devel nc "
+            "dnf install -y gcc python3-devel nc htop"
             "python3-pip python3-Cython python3-psycopg2 "
             "python3-paramiko systemd-devel libffi-devel sshpass "
             "pkgconf libxml2 libxslt libxslt-devel htop bridge-utils "
@@ -176,7 +176,7 @@ def init_postgresql():
     postgresql = Unit(b'postgresql.service',_autoload=True)
     service_load_and_start(postgresql)
     time.sleep(3)
-    subprocess.run("systemctl reload postgresql", shell=True)
+    subprocess.run("systemctl reload postgresql && systemctl enable postgresql", shell=True)
     try:
         from psycopg2.pool import SimpleConnectionPool
     except ImportError:

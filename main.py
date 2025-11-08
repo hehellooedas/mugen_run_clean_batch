@@ -30,6 +30,7 @@ from psycopg2 import sql
 from psycopg2.extras import Json
 from psycopg2.pool import ThreadedConnectionPool
 from concurrent.futures import ThreadPoolExecutor
+from threading import Lock
 from queue import Queue,Empty
 from pySmartDL import SmartDL
 
@@ -49,7 +50,7 @@ logging.basicConfig(
 
 cpu_count = os.cpu_count()
 pgsql_pool = ThreadedConnectionPool(
-    minconn=1,maxconn=cpu_count,
+    minconn=1,maxconn=cpu_count*2,
     host='localhost',
     port=5432,
     user='postgres',
@@ -59,6 +60,7 @@ pgsql_pool = ThreadedConnectionPool(
 id_queue = Queue()
 for i in range(1,cpu_count+1):
     id_queue.put(i)
+multi_machine_lock = Lock()
 
 
 # mugen测试用例描述
@@ -588,6 +590,9 @@ def run_all_tests():
                             'pgsql_pool' : pgsql_pool,
                             'id_queue':id_queue,
                             'database_table_name':f'workdir_{current_strftime}',
+                            'multi_machine_lock':multi_machine_lock,
+                            'UBOOT_BIN_FILE': config['UBOOT_BIN_FILE'],
+                            'DRIVE_FILE': config.get('drive_name'), 'DRIVE_TYPE': config['drive_type'],
                         }))
 
             print(f"当前数据库中有{count}条记录")
@@ -596,6 +601,9 @@ def run_all_tests():
         for future in futures:
             future.result()
 
+
+def pgsql_to_excel():
+    pass
 
 
 
@@ -611,6 +619,7 @@ if __name__ == "__main__":
     init_internet_gateway()
     make_template_image()
     run_all_tests()
+    pgsql_to_excel()
 
     # 正式开始测试
     # with ThreadPoolExecutor(max_workers=cpu_count) as executor:

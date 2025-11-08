@@ -9,7 +9,7 @@ import paramiko
 from faker import Faker
 from psycopg2 import sql
 from psycopg2.extras import register_json
-
+from datetime import datetime
 
 
 faker = Faker()
@@ -42,14 +42,33 @@ class RISC_V_UBOOT:
         self.database_table_name = kwargs.get('database_table_name')
         self.workdir_runtime = kwargs.get('workdir_runtime')
         self.id_queue:Queue = kwargs.get('id_queue')
-
+        self.multi_machine_lock = kwargs.get('multi_machine_lock')
         self.pool:ThreadedConnectionPool = kwargs.get('pgsql_pool')
+
+
+        self.UBOOT_BIN_FILE: Path = kwargs.get('UBOOT_BIN_FILE')
+        self.DRIVE_NAME: Path = Path(kwargs.get('DRIVE_FILE'))
+        self.DRIVE_TYPE: Path = kwargs.get('DRIVE_TYPE')
 
 
 
     def pre_test(self):
         self.machine_id = self.id_queue.get()
         self.ssh_port = self.machine_id + 20000
+        self.QEMU_script = f"""
+                    qemu-system-riscv64 \
+                        -nographic -machine virt \
+                        -smp 8 -m 4G \
+                        -bios {self.UBOOT_BIN_FILE} \
+                        -drive if=none,file={self.workdir_runtime / self.DRIVE_NAME.with_suffix('')},format={self.DRIVE_TYPE},id=hd0 \
+                        -object rng-random,filename=/dev/urandom,id=rng0 \
+                        -device virtio-rng-pci,rng=rng0 \
+                        -device virtio-blk-pci,drive=hd0 \
+                        -netdev tap,id=net0,ifname=tap0,script=no,downscript=no -device virtio-net-pci,netdev=net0,mac={faker.mac_address()} \
+                        -device virtio-net-pci,netdev=usernet,mac={faker.mac_address()} \
+                        -netdev user,id=usernet,hostfwd=tcp:127.0.0.1:{self.ssh_port}-:22 \
+                        -device qemu-xhci -usb -device usb-kbd
+                """
         self.workdir = self.workdir_runtime / str(self.machine_id)
         if (self.workdir).exists():
             shutil.rmtree(self.workdir)
@@ -62,7 +81,6 @@ class RISC_V_UBOOT:
             query = sql.SQL("select desc_json from {} where testsuite=%s and testcase=%s").format(sql.Identifier('public',self.database_table_name))
             cursor.execute(query,(self.suite,self.case))
             desc_json = cursor.fetchone()[0]
-            print(desc_json)
         self.pool.putconn(conn)
 
 
@@ -72,6 +90,9 @@ class RISC_V_UBOOT:
 
         # 额外添加的网卡数量
         self.add_network_interface = desc_json.get('add_network_interface',0)
+        if self.add_network_interface != 0 or self.add_network_interface != 1:
+            for i in range(self.add_network_interface):
+                self.QEMU_script += f" -netdev tap,id=net0,ifname=tap{2+i},script=no,downscript=no -device virtio-net-pci,netdev=net0,mac={faker.mac_address()} "
 
         # 额外添加的磁盘数量
         self.add_disk = desc_json.get('add_disk',[])
@@ -82,11 +103,76 @@ class RISC_V_UBOOT:
                     args = f"qemu-img create -f qcow2 disk{i}.qcow2 {self.add_disk[i-1]}G",
                     shell=True,cwd=self.workdir / 'disks',
                 )
+                self.QEMU_script += f" -drive file=disks/disk{i}.qcow2,format=qcow2,id=hd{i},if=none -device virtio-blk-pci,drive=hd{i} "
 
 
 
     def run_test(self):
-        pass
+        # 记录运行mugen时的时间
+        start_time = datetime.now()
+        try:
+            self.QEMU = subprocess.Popen(
+                args = self.QEMU_script,
+                shell=True,
+                cwd=self.workdir,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        except subprocess.CalledProcessError as e:
+            print(f"QEMU启动失败.报错信息:{e}")
+        time.sleep(60)
+        subprocess.run(
+            args = f"nc -vz 127.0.0.1 {self.ssh_port}",
+            shell=True,
+            stdout=subprocess.PIPE,
+        )
+        time.sleep(60)
+        client = get_client('127.0.0.1', 'openEuler12#$', self.ssh_port)
+        stdin,stdout,stderr = client.exec_command(
+            f"cd /root/mugen && bash mugen.sh -f {self.suite} -r {self.case} -x"
+        )
+        return_code = stdout.channel.recv_exit_status() # 阻塞
+
+        # 记录mugen运行结束时的时间
+        end_time = datetime.now()
+        output_log = stderr.read().decode('utf-8')
+        self.QEMU.kill()
+        check_result = 0    # 留白
+        if check_result == 0:
+            failure_reason = '/'
+        else:
+            # 从第三方接口获取
+            failure_reason = '/'
+
+        # 把获取到的信息更新到数据库
+        conn = self.pool.getconn()
+        with conn.cursor() as cursor:
+            updatedb = sql.SQL("""
+                               UPDATE {schema_table}
+                               SET
+                                state = TRUE,
+                                start_time = %s,
+                                end_time = %s,
+                                check_result = %s,
+                                output_log = %s,
+                                failure_reason = %s
+                                WHERE
+                                testsuite = %s
+                                AND testcase = %s
+                               """).format(
+                schema_table=sql.Identifier('public', self.database_table_name)
+            )
+            cursor.execute(updatedb,(
+                start_time,
+                end_time,
+                check_result,
+                output_log,
+                failure_reason,
+                self.suite,
+                self.case
+            ))
+
+        self.pool.putconn(conn)
 
 
     def post_test(self):
@@ -164,7 +250,7 @@ class RISC_V_UBOOT:
             stdout=subprocess.PIPE,
         )
 
-        time.sleep(120)
+        time.sleep(60)
         client: paramiko.SSHClient = get_client('127.0.0.1', 'openEuler12#$', 20000)
         time.sleep(5)
         # copy mugen到镜像内(sftp只能传输文件而不能是目录)
