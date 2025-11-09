@@ -1,4 +1,4 @@
-import sys
+import sys,re
 from pathlib import Path,PurePosixPath
 from psycopg2.pool import ThreadedConnectionPool
 from queue import Queue
@@ -13,7 +13,6 @@ from datetime import datetime
 
 from threading import Lock
 
-from main import new_machine_lock
 
 faker = Faker()
 
@@ -112,10 +111,8 @@ class RISC_V_UBOOT:
 
 
     def run_test(self):
-        # 记录运行mugen时的时间
-        start_time = datetime.now()
         # print(self.QEMU_script,self.machine_id,self.ssh_port)
-        new_machine_lock.acquire()
+        self.new_machine_lock.acquire()
         try:
             self.QEMU = subprocess.Popen(
                 args = self.QEMU_script,
@@ -133,7 +130,11 @@ class RISC_V_UBOOT:
         )
         time.sleep(120)
         client = get_client('127.0.0.1', 'openEuler12#$', self.ssh_port)
-        new_machine_lock.release()
+        self.new_machine_lock.release()
+
+        # 记录运行mugen时的时间
+        start_time = datetime.now()
+        # 开始测mugen
         stdin,stdout,stderr = client.exec_command(
             f"cd /root/mugen && bash mugen.sh -f {self.suite} -r {self.case} -x"
         )
@@ -141,14 +142,31 @@ class RISC_V_UBOOT:
 
         # 记录mugen运行结束时的时间
         end_time = datetime.now()
-        output_log = stderr.read().decode('utf-8')
-        self.QEMU.kill()
-        check_result = 0    # 留白
-        if check_result == 0:
-            failure_reason = '/'
+
+        mugen_output = stderr.read().decode('utf-8')
+        matches = re.search(r'(\d+)\s+successes\s+(\d+)\s+failures\s+and\s+(\d+)\s+skips', mugen_output)
+        if matches:
+            check_result = tuple(map(int, matches.groups()))
+            print(check_result)
         else:
-            # 从第三方接口获取
-            failure_reason = '/'
+            check_result = ('NULL','NULL','NULL')
+
+        with client.open_sftp() as sftp:
+            log_file_path = f"/root/mugen/logs/{self.suite}/{self.case}/"
+            log_file_name = sftp.listdir(log_file_path)[0]
+            print(log_file_name)
+            if not log_file_name:
+                print(f"目录{log_file_path}下没有找到.log文件!!!")
+                sys.exit(1)
+            print(log_file_path + log_file_name)
+            with sftp.open(log_file_path + log_file_name,'r') as log:
+                content = log.read().decode('utf-8')
+                output_log = content
+
+
+        self.QEMU.kill()
+
+        failure_reason = '/'
 
         # 把获取到的信息更新到数据库
         conn = self.pool.getconn()
@@ -306,8 +324,6 @@ class RISC_V_UBOOT:
         with client.open_sftp() as sftp:
             with sftp.open('/root/mugen/conf/env.json','r') as env:
                 print(f"env content:{env.read().decode('utf-8')}")
-            with sftp.open('/etc/ssh/sshd_config','r') as ssh_config:
-                print(f"ssh_config  content:{ssh_config.read().decode('utf-8')}")
 
 
         stdin,stdout,stderr = client.exec_command(

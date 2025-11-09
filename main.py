@@ -478,7 +478,7 @@ def init_postgresql():
         "state boolean NOT NULL default FALSE,"
         "start_time timestamptz,"
         "end_time timestamptz,"
-        "check_result char(7),"
+        "check_result text,"
         "output_log text,"
         "failure_reason text)"
     ).format(sql.Identifier(f"workdir_{current_strftime}")))
