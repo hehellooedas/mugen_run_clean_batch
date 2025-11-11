@@ -21,7 +21,7 @@ def get_client(ip, password, port=22):
     client.load_system_host_keys()
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy)
     try:
-        client.connect(hostname=ip, port=port, username="root", password=password, timeout=60)
+        client.connect(hostname=ip, port=port, username="root", password=password, timeout=600)
     except (
             paramiko.ssh_exception.NoValidConnectionsError,
             paramiko.ssh_exception.AuthenticationException,
@@ -71,7 +71,7 @@ class RISC_V_UBOOT:
                         -object rng-random,filename=/dev/urandom,id=rng0 \
                         -device virtio-rng-pci,rng=rng0 \
                         -device virtio-blk-pci,drive=hd0 \
-                        -netdev tap,id=net0,ifname=tap{self.ssh_port},script=no,downscript=no -device virtio-net-pci,netdev=net0,mac={faker.mac_address()} \
+                        -netdev tap,id=net0,ifname=tap{self.machine_id},script=no,downscript=no -device virtio-net-pci,netdev=net0,mac={faker.mac_address()} \
                         -device virtio-net-pci,netdev=usernet,mac={faker.mac_address()} \
                         -netdev user,id=usernet,hostfwd=tcp:127.0.0.1:{self.ssh_port}-:22 \
                         -device qemu-xhci -usb -device usb-kbd
@@ -95,7 +95,16 @@ class RISC_V_UBOOT:
         self.add_network_interface = desc_json.get('add_network_interface',0)
         if self.add_network_interface != 0 or self.add_network_interface != 1:
             for i in range(self.add_network_interface):
-                self.QEMU_script += f" -netdev tap,id=net0,ifname=tap{2+i},script=no,downscript=no -device virtio-net-pci,netdev=net0,mac={faker.mac_address()} "
+                self.QEMU_script += f" -netdev tap,id=net0,ifname=tap{100+i},script=no,downscript=no -device virtio-net-pci,netdev=net0,mac={faker.mac_address()} "
+                subprocess.run(
+                    args=f"ip tuntap add tap{100+i} mode tap &&"
+                         f"brctl addif br0 tap{100+i} &&"
+                         f"ip link set tap{100+i} up",
+                    shell=True,
+                    check=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                )
 
         # 额外添加的磁盘数量
         self.add_disk = desc_json.get('add_disk',[])
@@ -112,7 +121,7 @@ class RISC_V_UBOOT:
 
     def run_test(self):
         # print(self.QEMU_script,self.machine_id,self.ssh_port)
-        self.new_machine_lock.acquire()
+        #self.new_machine_lock.acquire()
         try:
             self.QEMU = subprocess.Popen(
                 args = self.QEMU_script,
@@ -128,9 +137,9 @@ class RISC_V_UBOOT:
             shell=True,
             stdout=subprocess.PIPE,
         )
-        time.sleep(120)
+        time.sleep(60)
         client = get_client('127.0.0.1', 'openEuler12#$', self.ssh_port)
-        self.new_machine_lock.release()
+        #self.new_machine_lock.release()
 
         # 记录运行mugen时的时间
         start_time = datetime.now()
@@ -159,11 +168,15 @@ class RISC_V_UBOOT:
                 print(f"目录{log_file_path}下没有找到.log文件!!!")
                 sys.exit(1)
             print(log_file_path + log_file_name)
-            with sftp.open(log_file_path + log_file_name,'r') as log:
-                content = log.read().decode('utf-8')
-                output_log = content
+            try:
+                with sftp.open(log_file_path + log_file_name,'r') as log:
+                    content = log.read().decode('utf-8')
+                    output_log = content
+            except FileNotFoundError:
+                print(f"文件{log_file_path + log_file_name}找不到,设定outpot_log为NULL")
+                output_log = 'NULL'
 
-
+        # mugen运行结束后直接强制终止QEMU
         self.QEMU.kill()
 
         failure_reason = '/'
@@ -329,4 +342,5 @@ class RISC_V_UBOOT:
         stdin,stdout,stderr = client.exec_command(
             "systemctl enable --now sshd && poweroff"
         )
-        time.sleep(120)
+        stdout.channel.recv_exit_status()
+        time.sleep(10)

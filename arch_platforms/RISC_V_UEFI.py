@@ -6,6 +6,7 @@ import shutil,time,os
 import gzip,bz2,lzma,zstandard
 import paramiko
 from faker import Faker
+from queue import Queue
 
 faker = Faker()
 
@@ -31,21 +32,17 @@ def get_client(ip, password, port=22):
 class RISC_V_UEFI:
 
     def __init__(self, **kwargs):
-        self.id:int = int(kwargs.get('id'))
-        self.pool:ThreadedConnectionPool = kwargs.get('pool')
-        self.arch = 'RISC-V'
-        self.suite:str =kwargs.get('suite')
-        self.case:str = kwargs.get('case')
+        self.arch = 'RISC-V'        # 当前测试类负责的指令集架构
+        self.platform = 'UBOOT'     # 当前测试类负责的系统启动引导平台
+        self.suite = kwargs.get('testsuite')             # 当前测试类待测试的mugen测试套名称
+        self.case = kwargs.get('testcase')              # 当前测试类待测试的mugen测试名称
+        self.vcpu = 2
+        self.database_table_name = kwargs.get('database_table_name')
+        self.workdir_runtime = kwargs.get('workdir_runtime')
+        self.id_queue:Queue = kwargs.get('id_queue')
+        self.multi_machine_lock = kwargs.get('multi_machine_lock')
+        self.pool:ThreadedConnectionPool = kwargs.get('pgsql_pool')
 
-        self.json_desc = kwargs.get('json_desc')
-        self.machine_number:int = 0
-        self.disk_number:int = 0
-        self.network_interface:int = 0
-
-
-        self.vcpu:int = kwargs.get('vcpu')
-        self.ssh_port:int = 20000 + id
-        self.run:str = ''
 
 
     @staticmethod
@@ -85,27 +82,6 @@ class RISC_V_UEFI:
         Path(default_workdir / PurePosixPath(VIRT_CODE_FILE).name).symlink_to(VIRT_CODE_FILE)
 
         try:
-            """
-            QEMU模拟器UEFI RISC-V启动脚本模板
-            qemu-system-riscv64 \
-              -nographic -machine virt,pflash0=pflash0,pflash1=pflash1,acpi=off \
-              -smp 8 -m 4G \
-              -object memory-backend-ram,size=2G,id=ram1 \
-              -numa node,memdev=ram1 \
-              -object memory-backend-ram,size=2G,id=ram2 \
-              -numa node,memdev=ram2 \
-              -blockdev node-name=pflash0,driver=file,read-only=on,filename="RISCV_VIRT_CODE.fd" \
-              -blockdev node-name=pflash1,driver=file,filename="RISCV_VIRT_VARS.fd" \
-              -drive file="openEuler-24.03-qemu-uefi.qcow2",format=qcow2,id=hd0,if=none \
-              -object rng-random,filename=/dev/urandom,id=rng0 \
-              -device virtio-vga \
-              -device virtio-rng-device,rng=rng0 \
-              -device virtio-blk-device,drive=hd0 \
-              -device virtio-net-device,netdev=usernet \
-              -netdev user,id=usernet,hostfwd=tcp::"10000"-:22 \
-              -device qemu-xhci -usb -device usb-kbd -device usb-tablet
-            """
-
             QEMU = subprocess.Popen(args=f"""
                 qemu-system-riscv64 \
                   -nographic -machine virt,pflash0=pflash0,pflash1=pflash1,acpi=off \
@@ -150,16 +126,61 @@ class RISC_V_UEFI:
 
         # 安装必备的rpm包
         stdin,stdout,stderr = client.exec_command(
-            'dnf install -y git top python3 && '
+            'dnf install -y git htop python3 && '
             'cd mugen/ && chmod +x dep_install.sh mugen.sh && bash dep_install.sh'
         )
         if stdout.channel.recv_exit_status() != 0:
             print(f"虚拟机中执行mugen初始化环境失败！报错信息:{stderr.read().decode('utf-8')}")
         print(stdout.read().decode('utf-8'))
         time.sleep(5)
+        # copy mugen到镜像内(sftp只能传输文件而不能是目录)
+        Path('/root/.ssh/known_hosts',exists_ok=True)
+        scp = subprocess.run(
+            args = f"export SSHPASS='openEuler12#$' && ssh-keygen -R '[localhost]:20000' && "
+                   f"sshpass -e scp -r -P 20000 -o StrictHostKeyChecking=accept-new {mugen_dir} root@localhost:/root/",
+            shell=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        if scp.returncode != 0:
+            print(f"传输mugen进虚拟机失败.报错信息:{scp.stderr.decode()}")
+            sys.exit(1)
+
+        # 安装必备的rpm包
+        stdin,stdout,stderr = client.exec_command(
+            'set -e;'
+            'dnf install -y git htop python3 && rpm --rebuilddb && dnf update -y && '
+            'cd mugen/ && chmod +x dep_install.sh mugen.sh && bash dep_install.sh'
+        )
+        if stdout.channel.recv_exit_status() != 0:
+            print(f"虚拟机中执行mugen初始化环境失败！报错信息:{stderr.read().decode('utf-8')}")
+
+        stdin,stdout,stderr = client.exec_command(
+            "systemctl disable --now firewalld && systemctl enable --now sshd"
+        )
+        if stdout.channel.recv_exit_status() != 0:
+            print(f"关闭firewalld防火墙失败或者自启动sshd失败.报错信息:{stderr.read().decode('utf-8')}")
+
+        stdin,stdout,stderr = client.exec_command(
+            f"""
+                nmcli con add type ethernet con-name net-static ifname enp0s3 ip4 10.0.0.2/24 gw4 10.0.0.254 && 
+                nmcli con up net-static && nmcli device status && 
+                cd mugen/ && bash mugen.sh -c --ip 10.0.0.2 --password openEuler12#$
+            """
+        )
+        if stdout.channel.recv_exit_status() != 0:
+            print(f"tap网络设置错误,或mugen创建conf/env.json失败!报错信息:{stderr.read().decode('utf-8')}")
+
+        with client.open_sftp() as sftp:
+            with sftp.open('/root/mugen/conf/env.json','r') as env:
+                print(f"env content:{env.read().decode('utf-8')}")
 
 
-        QEMU.kill()
+        stdin,stdout,stderr = client.exec_command(
+            "systemctl enable --now sshd && poweroff"
+        )
+
+        stdout.channel.recv_exit_status()
         # 初始化mugen
         # stdin,stdout,stderr = client.exec_command(
         #
