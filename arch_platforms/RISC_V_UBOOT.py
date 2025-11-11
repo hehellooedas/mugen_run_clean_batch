@@ -21,7 +21,7 @@ def get_client(ip, password, port=22):
     client.load_system_host_keys()
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy)
     try:
-        client.connect(hostname=ip, port=port, username="root", password=password, timeout=600)
+        client.connect(hostname=ip, port=port, username="root", password=password, timeout=60,banner_timeout=600)
     except (
             paramiko.ssh_exception.NoValidConnectionsError,
             paramiko.ssh_exception.AuthenticationException,
@@ -165,7 +165,6 @@ class RISC_V_UBOOT:
             try:
                 log_file_name = sftp.listdir(log_file_path)[0]
             except FileNotFoundError:
-                print(f"文件{log_file_path + log_file_name}找不到,设定outpot_log为NULL")
                 output_log = 'NULL'
                 log_file_name = None
             if not log_file_name:
@@ -292,7 +291,7 @@ class RISC_V_UBOOT:
             stdout=subprocess.PIPE,
         )
 
-        time.sleep(60)
+        time.sleep(120)
         client: paramiko.SSHClient = get_client('127.0.0.1', 'openEuler12#$', 20000)
         time.sleep(5)
         # copy mugen到镜像内(sftp只能传输文件而不能是目录)

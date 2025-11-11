@@ -16,7 +16,7 @@ def get_client(ip, password, port=22):
     client.load_system_host_keys()
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy)
     try:
-        client.connect(hostname=ip, port=port, username="root", password=password, timeout=100)
+        client.connect(hostname=ip, port=port, username="root", password=password, timeout=100,banner_timeout=600)
     except (
             paramiko.ssh_exception.NoValidConnectionsError,
             paramiko.ssh_exception.AuthenticationException,
