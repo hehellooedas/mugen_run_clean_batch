@@ -162,19 +162,18 @@ class RISC_V_UBOOT:
 
         with client.open_sftp() as sftp:
             log_file_path = f"/root/mugen/logs/{self.suite}/{self.case}/"
-            log_file_name = sftp.listdir(log_file_path)[0]
-            print(log_file_name)
-            if not log_file_name:
-                print(f"目录{log_file_path}下没有找到.log文件!!!")
-                sys.exit(1)
-            print(log_file_path + log_file_name)
             try:
-                with sftp.open(log_file_path + log_file_name,'r') as log:
-                    content = log.read().decode('utf-8')
-                    output_log = content
+                log_file_name = sftp.listdir(log_file_path)[0]
             except FileNotFoundError:
                 print(f"文件{log_file_path + log_file_name}找不到,设定outpot_log为NULL")
                 output_log = 'NULL'
+                log_file_name = None
+            if not log_file_name:
+                print(f"目录{log_file_path}下没有找到.log文件!!!")
+            else:
+                with sftp.open(log_file_path + log_file_name,'r') as log:
+                    content = log.read().decode('utf-8')
+                    output_log = content
 
         # mugen运行结束后直接强制终止QEMU
         self.QEMU.kill()
