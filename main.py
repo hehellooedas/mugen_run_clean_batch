@@ -17,7 +17,7 @@ import time
 import json
 import faker
 import shutil
-import os,sys,signal
+import os,sys,psutil
 import requests
 import humanfriendly
 from collections import namedtuple
@@ -36,7 +36,7 @@ from arch_platforms import RISC_V_UBOOT
 
 setproctitle('mrcb')    # 设置mrcb的进程名称
 
-#install(show_locals=True)
+install(show_locals=True)
 console = Console(color_system='256',file=sys.stdout)
 
 logging.basicConfig(
@@ -47,6 +47,10 @@ logging.basicConfig(
 
 
 cpu_count = os.cpu_count()
+if psutil.cpu_freq().max > 5000:
+    vcpu = 4
+else:
+    vcpu = 2
 pgsql_pool = ThreadedConnectionPool(
     minconn=1,maxconn=cpu_count*2,
     host='localhost',
@@ -594,6 +598,7 @@ def run_all_tests():
                             'UBOOT_BIN_NAME': config['UBOOT_BIN_NAME'],
                             'DRIVE_FILE': config.get('drive_name'), 'DRIVE_TYPE': config['drive_type'],
                             'new_machine_lock':new_machine_lock,
+                            'vcpu':vcpu
                         }))
 
             print(f"当前数据库中有{count}条记录")
@@ -610,6 +615,9 @@ def pgsql_to_excel():
     """
     conn = pgsql_pool.getconn()
     dataframe = pandas.read_sql(sql_query, conn)
+    time_column_indices = [5,6]
+    for index in time_column_indices:
+        dataframe.iloc[:, index] = dataframe.iloc[:, index].dt.tz_localize(None)
     dataframe.to_excel(mrcb_work_dir / 'output.xlsx',index=False,engine='openpyxl')
     pgsql_pool.getconn(conn)
 

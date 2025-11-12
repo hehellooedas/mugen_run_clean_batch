@@ -41,7 +41,7 @@ class RISC_V_UBOOT:
         self.platform = 'UBOOT'     # 当前测试类负责的系统启动引导平台
         self.suite = kwargs.get('testsuite')             # 当前测试类待测试的mugen测试套名称
         self.case = kwargs.get('testcase')              # 当前测试类待测试的mugen测试名称
-        self.vcpu = 2
+        self.vcpu = kwargs.get('vcpu')      # 设置的虚拟CPU数量
         self.database_table_name = kwargs.get('database_table_name')
         self.workdir_runtime = kwargs.get('workdir_runtime')
         self.id_queue:Queue = kwargs.get('id_queue')
@@ -137,6 +137,7 @@ class RISC_V_UBOOT:
             shell=True,
             stdout=subprocess.PIPE,
         )
+        time.sleep(100)
         client = get_client('127.0.0.1', 'openEuler12#$', self.ssh_port)
         #self.new_machine_lock.release()
 
@@ -296,7 +297,7 @@ class RISC_V_UBOOT:
             shell=True,
             stdout=subprocess.PIPE,
         )
-
+        time.sleep(100)
         client: paramiko.SSHClient = get_client('127.0.0.1', 'openEuler12#$', 20000)
         time.sleep(5)
         # copy mugen到镜像内(sftp只能传输文件而不能是目录)
