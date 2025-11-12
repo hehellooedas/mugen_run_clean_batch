@@ -611,16 +611,23 @@ def run_all_tests():
 # 将数据表中信息转入excel文件
 def pgsql_to_excel():
     sql_query = f"""
-        select * from public.workdir_{current_strftime}
+        select testsuite,testcase,state,start_time,end_time,check_result,output_log,failure_reason from public.workdir_{current_strftime}
+        order by id
     """
     conn = pgsql_pool.getconn()
     dataframe = pandas.read_sql(sql_query, conn)
-    time_column_indices = [5,6]
-    for index in time_column_indices:
-        dataframe.iloc[:, index] = dataframe.iloc[:, index].dt.tz_localize(None)
+    print('请忽略上述WARNING')
+    for index in (3,4):
+        dataframe.iloc[:, index] = (dataframe.iloc[:, index].dt.tz_convert('Asia/Shanghai').dt.tz_localize(None))
     dataframe.to_excel(mrcb_work_dir / 'output.xlsx',index=False,engine='openpyxl')
     pgsql_pool.getconn(conn)
 
+
+def kill_all_qemu():
+    subprocess.run(
+        "pkill -9 qemu",
+        shell=True,check=True,
+    )
 
 
 
@@ -637,6 +644,7 @@ if __name__ == "__main__":
     make_template_image()
     run_all_tests()
     pgsql_to_excel()
+    kill_all_qemu()
 
     end_time = time.time()
     console.print(f"mrcb运行结束,本次运行总耗时{humanfriendly.format_timespan(end_time - start_time)}")
