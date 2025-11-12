@@ -1,5 +1,6 @@
 import sys,re
 from pathlib import Path,PurePosixPath
+
 from psycopg2.pool import ThreadedConnectionPool
 from queue import Queue
 import subprocess
@@ -120,7 +121,6 @@ class RISC_V_UBOOT:
 
 
     def run_test(self):
-        # print(self.QEMU_script,self.machine_id,self.ssh_port)
         #self.new_machine_lock.acquire()
         try:
             self.QEMU = subprocess.Popen(
@@ -137,7 +137,6 @@ class RISC_V_UBOOT:
             shell=True,
             stdout=subprocess.PIPE,
         )
-        time.sleep(60)
         client = get_client('127.0.0.1', 'openEuler12#$', self.ssh_port)
         #self.new_machine_lock.release()
 
@@ -167,6 +166,12 @@ class RISC_V_UBOOT:
             except FileNotFoundError:
                 output_log = 'NULL'
                 log_file_name = None
+            except Exception as e:
+                print(f'寻找mugen运行结束后的.log文件出现异常.异常信息:{e}')
+                output_log = 'NULL'
+                log_file_name = None
+                self.QEMU.terminate()
+                return f'寻找mugen运行结束后的.log文件出现异常.异常信息:{e}'
             if not log_file_name:
                 print(f"目录{log_file_path}下没有找到.log文件!!!")
             else:
@@ -212,6 +217,7 @@ class RISC_V_UBOOT:
 
 
     def post_test(self):
+        self.QEMU.kill()
         # 把任务ID放回资源池,必须先删除工作目录再放回queue
         shutil.rmtree(self.workdir)
         self.id_queue.put(self.machine_id)
@@ -291,7 +297,6 @@ class RISC_V_UBOOT:
             stdout=subprocess.PIPE,
         )
 
-        time.sleep(120)
         client: paramiko.SSHClient = get_client('127.0.0.1', 'openEuler12#$', 20000)
         time.sleep(5)
         # copy mugen到镜像内(sftp只能传输文件而不能是目录)

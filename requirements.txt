@@ -10,3 +10,4 @@ pystemd
 faker
 pysmartdl
 requests
+pandas

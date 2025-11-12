@@ -75,7 +75,7 @@ def install_needed_rpms():
     try:
         subprocess.run(
             "dnf install -y gcc python3-devel nc htop "
-            "python3-pip python3-Cython python3-psycopg2 "
+            "python3-pip python3-Cython python3-psycopg2 python3-pandas "
             "python3-paramiko systemd-devel libffi-devel sshpass "
             "pkgconf libxml2 libxslt libxslt-devel htop bridge-utils "
             "libxml2-devel tmux postgresql qemu qemu-system-*",

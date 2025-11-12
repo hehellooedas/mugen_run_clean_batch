@@ -30,8 +30,9 @@ from concurrent.futures import ThreadPoolExecutor
 from threading import Lock
 from queue import Queue
 from pySmartDL import SmartDL
-
+import pandas
 from arch_platforms import RISC_V_UBOOT
+
 
 setproctitle('mrcb')    # 设置mrcb的进程名称
 
@@ -602,8 +603,16 @@ def run_all_tests():
             future.result()
 
 
+# 将数据表中信息转入excel文件
 def pgsql_to_excel():
-    pass
+    sql_query = f"""
+        select * from public.workdir_{current_strftime}
+    """
+    conn = pgsql_pool.getconn()
+    dataframe = pandas.read_sql(sql_query, conn)
+    dataframe.to_excel(mrcb_work_dir / 'output.xlsx',index=False,engine='openpyxl')
+    pgsql_pool.getconn(conn)
+
 
 
 
